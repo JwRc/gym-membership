@@ -20,3 +20,7 @@ export const Can = (...perms: Permission[]) => SetMetadata(PERMS, perms);
 export const CurrentUser = createParamDecorator(
   (_: unknown, ctx: ExecutionContext): AuthUser => ctx.switchToHttp().getRequest().user,
 );
+
+export const NO_AUTO_AUDIT = 'noAutoAudit';
+/** A rota grava a própria auditoria (com detalhes); o interceptor genérico não registra de novo. */
+export const NoAutoAudit = () => SetMetadata(NO_AUTO_AUDIT, true);

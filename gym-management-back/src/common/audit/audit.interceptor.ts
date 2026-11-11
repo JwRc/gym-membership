@@ -1,6 +1,8 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
 import { AuthUser } from '../auth/auth.types';
+import { NO_AUTO_AUDIT } from '../auth/decorators';
 import { AuditService } from './audit.module';
 
 interface Req {
@@ -18,11 +20,15 @@ interface Req {
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private readonly audit: AuditService) {}
+  constructor(
+    private readonly audit: AuditService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = ctx.switchToHttp().getRequest<Req>();
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next.handle();
+    if (this.reflector.getAllAndOverride<boolean>(NO_AUTO_AUDIT, [ctx.getHandler(), ctx.getClass()])) return next.handle();
     return next.handle().pipe(
       tap(() => {
         if (!req.user?.tenantId) return;

@@ -70,7 +70,7 @@ export class AcademyQueries {
       this.tenant(tenantId),
       this.disciplines(tenantId),
       this.prisma.student.findMany({
-        where: { tenantId },
+        where: { tenantId, anonymizedAt: null },
         include: {
           ranks: true,
           invoices: { where: { status: { in: ['PENDING', 'OVERDUE'] } }, select: { status: true, dueDate: true, amount: true, id: true } },
@@ -103,7 +103,7 @@ export class AcademyQueries {
   }
 
   async studentOr404(tenantId: string, id: string) {
-    const s = await this.prisma.student.findFirst({ where: { id, tenantId } });
+    const s = await this.prisma.student.findFirst({ where: { id, tenantId, anonymizedAt: null } });
     if (!s) throw new NotFoundException('Aluno não encontrado.');
     return s;
   }

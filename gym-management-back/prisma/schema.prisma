@@ -225,6 +225,10 @@ model Student {
   guardianPhone    String?
   planId           String?
   plan             Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  /// LGPD: quando o aluno (ou responsável) autorizou o uso dos dados, inclusive de saúde
+  consentAt        DateTime?
+  /// LGPD: dados pessoais apagados a pedido; mensalidades e vendas ficam (registros financeiros)
+  anonymizedAt     DateTime?
   createdAt        DateTime      @default(now())
 
   user        User?

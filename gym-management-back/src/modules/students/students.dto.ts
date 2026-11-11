@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateNested,
+  Equals, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { Gender, StudentStatus } from '@prisma/client';
 
@@ -26,6 +26,8 @@ export class CreateStudentDto {
   @IsOptional() @IsString() guardianPhone?: string;
   @IsArray() @ValidateNested({ each: true }) @Type(() => StudentRankInput) ranks: StudentRankInput[];
   @IsOptional() @IsArray() @IsString({ each: true }) classGroupIds?: string[];
+  /** LGPD: autorização do aluno/responsável para o uso dos dados (obrigatória no cadastro) */
+  @Equals(true, { message: 'Confirme o consentimento do aluno (ou responsável) para o uso dos dados.' }) consent: boolean;
 }
 
 export class UpdateStudentDto {
@@ -44,6 +46,7 @@ export class UpdateStudentDto {
   @IsOptional() @IsString() guardianPhone?: string | null;
   @IsOptional() @IsArray() @IsString({ each: true }) classGroupIds?: string[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => StudentRankInput) addRanks?: StudentRankInput[];
+  @IsOptional() @IsBoolean() consent?: boolean;
 }
 
 export class ListStudentsQuery {

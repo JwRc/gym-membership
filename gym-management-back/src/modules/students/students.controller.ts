@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { Can, CurrentUser } from '../../common/auth/decorators';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Can, CurrentUser, NoAutoAudit } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { StudentsService } from './students.service';
 import { InvoicesService } from './invoices.service';
@@ -37,6 +37,16 @@ export class StudentsController {
   @Get('students/:id/invoices')
   invoicesOf(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.invoices.forStudent(u.tenantId, id);
+  }
+
+  @Can('students.export') @Get('students/:id/export')
+  exportData(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.students.exportData(u, id);
+  }
+
+  @Can('students.delete') @NoAutoAudit() @Post('students/:id/anonymize') @HttpCode(200)
+  anonymize(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.students.anonymize(u, id);
   }
 
   @Can('invoices.write') @Post('students/:id/invoices')

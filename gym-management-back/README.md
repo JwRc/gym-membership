@@ -69,6 +69,7 @@ src/
 - **Permissões (base do RBAC):** cada rota declara o que exige com `@Can('students.write')` (na classe e/ou na rota). Os perfis são listas de permissões em `src/common/auth/permissions.ts`; na V1 só existe o `ADMIN`, com todas. Rotas sem `@Public()`, `@Authenticated()` ou `@Can()` são **negadas** pelo guard global.
 - **Sessão:** JWT (padrão 12h) com `ver` = `User.tokenVersion`; o guard confere a versão no banco, então trocar a senha derruba as outras sessões. Login limitado a 5 tentativas por minuto por IP + e-mail.
 - **Auditoria:** toda escrita bem-sucedida de usuário logado gera uma linha em `AuditLog` (método + rota, parâmetros da URL, usuário). Login e ações de operação também são registrados. O corpo da requisição não é gravado.
+- **LGPD:** o cadastro exige o consentimento do aluno/responsável (`Student.consentAt`). `GET /students/:id/export` entrega todos os dados do aluno em JSON. `POST /students/:id/anonymize` apaga os dados pessoais a pedido do titular: mensalidades pagas e vendas ficam sem identificação, as em aberto são excluídas e o aluno some das listas (`anonymizedAt`). Exportação e anonimização ficam na auditoria.
 - **Cache (Redis):** leituras pesadas (lista de alunos, painel) usam `CacheService.getOrSet`. Cada academia tem um contador de versão; qualquer escrita bem-sucedida (interceptor global) incrementa o contador e invalida o cache daquela academia.
 - **Jobs (BullMQ):**
   - `billing` › `generate-invoices` — diário às 02:00; garante as mensalidades do mês e, a partir do dia 25, cria as do mês seguinte (Configurações › "Gerar mensalidades automaticamente"). Idempotente (`@@unique([studentId, year, month])`).
@@ -93,7 +94,7 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 | --- | --- |
 | `POST /auth/login` · `GET /auth/me` · `POST /auth/change-password` | autenticação |
 | `GET /dashboard` | painel |
-| `GET/POST /students` · `GET/PATCH /students/:id` | alunos (filtros `q`, `disciplineId`, `status`, `finance`) |
+| `GET/POST /students` · `GET/PATCH /students/:id` · `GET /students/:id/export` · `POST /students/:id/anonymize` | alunos (filtros `q`, `disciplineId`, `status`, `finance`) |
 | `GET/POST /students/:id/invoices` · `POST /invoices/:id/pay` | mensalidades |
 | `GET /graduation` · `GET /graduation/preview` · `POST /graduation/promote` | graduação |
 | `GET/POST /classes` · `PATCH/DELETE /classes/:id` · `POST /classes/:id/slots` · `PATCH/DELETE /classes/slots/:slotId` · `GET /classes/conflicts` · `POST/DELETE /classes/:id/students` | turmas |

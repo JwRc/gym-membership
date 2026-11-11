@@ -131,7 +131,7 @@ export class ClassesService {
     });
     if (!g) throw new NotFoundException('Turma não encontrada.');
     if (g._count.enrollments >= g.capacity) throw new BadRequestException('Turma lotada.');
-    const s = await this.prisma.student.findFirst({ where: { id: studentId, tenantId } });
+    const s = await this.prisma.student.findFirst({ where: { id: studentId, tenantId, anonymizedAt: null } });
     if (!s) throw new NotFoundException('Aluno não encontrado.');
     await this.prisma.enrollment.upsert({
       where: { studentId_classGroupId: { studentId, classGroupId: id } },

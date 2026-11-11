@@ -105,7 +105,7 @@ export class StoreService {
       const p = P.get(i.productId)!;
       if (p.stock < i.qty) throw new BadRequestException(`Estoque insuficiente de ${p.name} (${p.stock} em estoque).`);
     }
-    if (dto.studentId && !(await this.prisma.student.findFirst({ where: { id: dto.studentId, tenantId } })))
+    if (dto.studentId && !(await this.prisma.student.findFirst({ where: { id: dto.studentId, tenantId, anonymizedAt: null } })))
       throw new BadRequestException('Aluno inválido.');
 
     const date = dto.date ? dateOnly(dto.date) : today();
