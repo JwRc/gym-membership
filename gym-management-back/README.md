@@ -68,10 +68,9 @@ src/
 
 ### Regras de graduação
 
-Em `src/domain/graduation.ts` (com testes):
+**Na V1 a graduação é manual:** o professor decide e a recepção registra (`POST /graduation/promote`). A API não calcula aptidão, porque a presença não é registrada. As regras abaixo continuam em `src/domain/graduation.ts` (com testes), para quando a presença voltar:
 - Modalidades com graus (Jiu-jitsu: 4 graus por faixa, 4 meses e 40 aulas entre graus). Depois do 4º grau, a próxima faixa exige o tempo mínimo da faixa atual (contado desde a data da faixa) e as aulas desde a última graduação. Na faixa preta os graus seguem até o 6º.
 - Demais modalidades: cada nível tem tempo e aulas mínimos desde a última graduação; o último nível é o topo.
-- Na V1 a presença está desligada: a graduação é registrada manualmente.
 
 ### Modalidades: catálogo × academia
 

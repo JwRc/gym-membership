@@ -94,14 +94,6 @@ export class DashboardService {
       })
       .sort((a, b) => b.days - a.days);
 
-    // Aptos a graduar
-    const eligible = active.flatMap((s) =>
-      s.ranks.filter((r) => r.eligible && r.next).map((r) => ({
-        studentId: s.id, name: s.name, initials: s.initials, disciplineId: r.disciplineId, discipline: r.discipline.name,
-        from: r.belt, to: r.next!.belt, toLabel: r.next!.belt.label,
-      })),
-    );
-
     return {
       date: t.toISOString().slice(0, 10),
       activeStudents: active.length,
@@ -109,7 +101,6 @@ export class DashboardService {
       finance,
       todayClasses,
       late: { count: lateList.length, total: money(lateList.reduce((a, l) => a + l.amount, 0)), rows: lateList.slice(0, 6) },
-      eligible: { count: eligible.length, rows: eligible.slice(0, 6) },
     };
   }
 }
