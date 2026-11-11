@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { StudentsService } from './students.service';
 import { InvoicesService } from './invoices.service';
 import { CreateStudentDto, ListStudentsQuery, UpdateStudentDto } from './students.dto';
 import { LaunchInvoicesDto, PayInvoiceDto } from './invoices.dto';
 
-@Roles('ADMIN')
+@Can('students.read')
 @Controller()
 export class StudentsController {
   constructor(
@@ -19,7 +19,7 @@ export class StudentsController {
     return this.students.list(u.tenantId, q);
   }
 
-  @Post('students')
+  @Can('students.write') @Post('students')
   create(@CurrentUser() u: AuthUser, @Body() dto: CreateStudentDto) {
     return this.students.create(u.tenantId, dto);
   }
@@ -29,7 +29,7 @@ export class StudentsController {
     return this.students.detail(u.tenantId, id);
   }
 
-  @Patch('students/:id')
+  @Can('students.write') @Patch('students/:id')
   update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateStudentDto) {
     return this.students.update(u.tenantId, id, dto);
   }
@@ -39,12 +39,12 @@ export class StudentsController {
     return this.invoices.forStudent(u.tenantId, id);
   }
 
-  @Post('students/:id/invoices')
+  @Can('invoices.write') @Post('students/:id/invoices')
   launch(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: LaunchInvoicesDto) {
     return this.invoices.launch(u.tenantId, id, dto);
   }
 
-  @Post('invoices/:id/pay')
+  @Can('invoices.write') @Post('invoices/:id/pay')
   pay(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: PayInvoiceDto) {
     return this.invoices.pay(u.tenantId, id, dto);
   }

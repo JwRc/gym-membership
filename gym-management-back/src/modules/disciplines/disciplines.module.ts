@@ -5,11 +5,12 @@ import {
 import { Type } from 'class-transformer';
 import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Min, MinLength, ValidateNested } from 'class-validator';
 import { Prisma } from '@prisma/client';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { brDate, num } from '../../common/util';
-import { CATALOG, CatalogEntry, DISCIPLINE_COLORS } from '../../domain/catalog';
+import { CATALOG, DISCIPLINE_COLORS } from '../../domain/catalog';
+import { catalogLevels, catalogRules, syncCatalog } from './catalog-sync';
 
 class LevelDto {
   @IsString() @MinLength(1) name: string;
@@ -26,20 +27,7 @@ class DisciplineDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => LevelDto) levels: LevelDto[];
 }
 
-function catalogLevels(c: CatalogEntry) {
-  return c.levels.map(([name, color, minMonths, minClasses], order) => ({ order, name, color, minMonths, minClasses }));
-}
-function catalogRules(c: CatalogEntry) {
-  return {
-    system: c.system,
-    degreesPerLevel: c.degreesPerLevel ?? 0,
-    lastLevelMaxDegrees: c.lastLevelMaxDegrees ?? 0,
-    degreeMinMonths: c.degreeMinMonths ?? null,
-    degreeMinClasses: c.degreeMinClasses ?? null,
-  };
-}
-
-/** Mantém a tabela do catálogo padrão igual ao código (rodado no boot). */
+/** Sincroniza o catálogo padrão no boot. */
 @Injectable()
 export class CatalogSync implements OnModuleInit {
   private readonly log = new Logger(CatalogSync.name);
@@ -47,12 +35,7 @@ export class CatalogSync implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      for (const c of CATALOG) {
-        const data = { name: c.name, color: c.color, ...catalogRules(c) };
-        await this.prisma.catalogDiscipline.upsert({ where: { id: c.id }, update: data, create: { id: c.id, ...data } });
-        await this.prisma.catalogLevel.deleteMany({ where: { disciplineId: c.id } });
-        await this.prisma.catalogLevel.createMany({ data: catalogLevels(c).map((l) => ({ ...l, disciplineId: c.id })) });
-      }
+      await syncCatalog(this.prisma);
     } catch (e) {
       this.log.error(`Falha ao sincronizar catálogo: ${(e as Error).message}`);
     }
@@ -194,7 +177,7 @@ export class DisciplinesService {
   }
 }
 
-@Roles('ADMIN')
+@Can('disciplines.read')
 @Controller('disciplines')
 export class DisciplinesController {
   constructor(private readonly svc: DisciplinesService) {}
@@ -202,19 +185,19 @@ export class DisciplinesController {
   @Get() list(@CurrentUser() u: AuthUser) {
     return this.svc.list(u.tenantId);
   }
-  @Post() create(@CurrentUser() u: AuthUser, @Body() dto: DisciplineDto) {
+  @Can('disciplines.write') @Post() create(@CurrentUser() u: AuthUser, @Body() dto: DisciplineDto) {
     return this.svc.create(u.tenantId, dto);
   }
-  @Post('from-catalog/:catalogId') addFromCatalog(@CurrentUser() u: AuthUser, @Param('catalogId') catalogId: string) {
+  @Can('disciplines.write') @Post('from-catalog/:catalogId') addFromCatalog(@CurrentUser() u: AuthUser, @Param('catalogId') catalogId: string) {
     return this.svc.addFromCatalog(u.tenantId, catalogId);
   }
-  @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: DisciplineDto) {
+  @Can('disciplines.write') @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: DisciplineDto) {
     return this.svc.update(u.tenantId, id, dto);
   }
-  @Post(':id/restore') restore(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('disciplines.write') @Post(':id/restore') restore(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.restore(u.tenantId, id);
   }
-  @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('disciplines.write') @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.remove(u.tenantId, id);
   }
 }

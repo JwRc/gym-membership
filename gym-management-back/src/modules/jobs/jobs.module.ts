@@ -2,7 +2,7 @@ import { Body, Controller, Get, Injectable, Logger, Module, NotFoundException, O
 import { BullModule, InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { IsInt, Max, Min } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { CacheService } from '../../common/redis/redis.module';
@@ -117,7 +117,7 @@ class GenerateDto {
   @IsInt() @Min(1) @Max(12) month: number;
 }
 
-@Roles('ADMIN')
+@Can('billing.run')
 @Controller('jobs')
 export class JobsController {
   constructor(@InjectQueue(BILLING_QUEUE) private readonly billing: Queue) {}

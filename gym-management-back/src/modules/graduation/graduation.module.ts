@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Injectable, Module, NotFoundException, Post, Query } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { brDate, dateOnly, today } from '../../common/util';
@@ -103,7 +103,7 @@ export class GraduationService {
   }
 }
 
-@Roles('ADMIN')
+@Can('graduation.read')
 @Controller('graduation')
 export class GraduationController {
   constructor(private readonly svc: GraduationService) {}
@@ -118,7 +118,7 @@ export class GraduationController {
     return this.svc.preview(u.tenantId, studentId, disciplineId);
   }
 
-  @Post('promote')
+  @Can('graduation.write') @Post('promote')
   promote(@CurrentUser() u: AuthUser, @Body() dto: PromoteDto) {
     return this.svc.promote(u.tenantId, dto);
   }

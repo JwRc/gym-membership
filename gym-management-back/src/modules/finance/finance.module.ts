@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { TxStatus, TxType } from '@prisma/client';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { brDate, dateOnly, diffDays, iso, money, monthRange, num, today } from '../../common/util';
@@ -164,7 +164,7 @@ export class FinanceService {
   }
 }
 
-@Roles('ADMIN')
+@Can('finance.read')
 @Controller('finance')
 export class FinanceController {
   constructor(private readonly svc: FinanceService) {}
@@ -172,13 +172,13 @@ export class FinanceController {
   @Get() overview(@CurrentUser() u: AuthUser, @Query() q: FinanceQuery) {
     return this.svc.overview(u.tenantId, q);
   }
-  @Post('transactions') create(@CurrentUser() u: AuthUser, @Body() dto: CreateTxDto) {
+  @Can('finance.write') @Post('transactions') create(@CurrentUser() u: AuthUser, @Body() dto: CreateTxDto) {
     return this.svc.create(u.tenantId, dto);
   }
-  @Patch('transactions/:id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateTxDto) {
+  @Can('finance.write') @Patch('transactions/:id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateTxDto) {
     return this.svc.update(u.tenantId, id, dto);
   }
-  @Delete('transactions/:id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('finance.write') @Delete('transactions/:id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.remove(u.tenantId, id);
   }
 }

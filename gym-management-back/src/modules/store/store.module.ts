@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { PAYMENT_LABEL, dateOnly, iso, money, monthRange, num, today } from '../../common/util';
@@ -144,7 +144,7 @@ export class StoreService {
   }
 }
 
-@Roles('ADMIN')
+@Can('store.read')
 @Controller('store')
 export class StoreController {
   constructor(private readonly svc: StoreService) {}
@@ -152,13 +152,13 @@ export class StoreController {
   @Get() overview(@CurrentUser() u: AuthUser) {
     return this.svc.overview(u.tenantId);
   }
-  @Post('products') createProduct(@CurrentUser() u: AuthUser, @Body() dto: ProductDto) {
+  @Can('store.write') @Post('products') createProduct(@CurrentUser() u: AuthUser, @Body() dto: ProductDto) {
     return this.svc.createProduct(u.tenantId, dto);
   }
-  @Patch('products/:id') updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
+  @Can('store.write') @Patch('products/:id') updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
     return this.svc.updateProduct(u.tenantId, id, dto);
   }
-  @Post('sales') createSale(@CurrentUser() u: AuthUser, @Body() dto: SaleDto) {
+  @Can('store.sell') @Post('sales') createSale(@CurrentUser() u: AuthUser, @Body() dto: SaleDto) {
     return this.svc.createSale(u.tenantId, dto);
   }
 }

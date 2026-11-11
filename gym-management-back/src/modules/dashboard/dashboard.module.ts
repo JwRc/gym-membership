@@ -1,5 +1,5 @@
 import { Controller, Get, Injectable, Module } from '@nestjs/common';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { CacheService } from '../../common/redis/redis.module';
@@ -105,7 +105,7 @@ export class DashboardService {
   }
 }
 
-@Roles('ADMIN')
+@Can('dashboard.read')
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly svc: DashboardService) {}

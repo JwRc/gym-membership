@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { initials } from '../../common/util';
@@ -162,7 +162,7 @@ export class ClassesService {
   }
 }
 
-@Roles('ADMIN')
+@Can('classes.read')
 @Controller('classes')
 export class ClassesController {
   constructor(private readonly svc: ClassesService) {}
@@ -179,28 +179,28 @@ export class ClassesController {
   ) {
     return this.svc.conflicts(u.tenantId, { weekday: +weekday, startMin: +startMin, endMin: +endMin }, ignoreSlotId);
   }
-  @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateClassDto) {
+  @Can('classes.write') @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateClassDto) {
     return this.svc.create(u.tenantId, dto);
   }
-  @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateClassDto) {
+  @Can('classes.write') @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateClassDto) {
     return this.svc.update(u.tenantId, id, dto);
   }
-  @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('classes.write') @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.remove(u.tenantId, id);
   }
-  @Post(':id/slots') addSlot(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: SlotDto) {
+  @Can('classes.write') @Post(':id/slots') addSlot(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: SlotDto) {
     return this.svc.addSlot(u.tenantId, id, dto);
   }
-  @Patch('slots/:slotId') moveSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string, @Body() dto: SlotDto) {
+  @Can('classes.write') @Patch('slots/:slotId') moveSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string, @Body() dto: SlotDto) {
     return this.svc.moveSlot(u.tenantId, slotId, dto);
   }
-  @Delete('slots/:slotId') removeSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string) {
+  @Can('classes.write') @Delete('slots/:slotId') removeSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string) {
     return this.svc.removeSlot(u.tenantId, slotId);
   }
-  @Post(':id/students') enroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: EnrollDto) {
+  @Can('classes.write') @Post(':id/students') enroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: EnrollDto) {
     return this.svc.enroll(u.tenantId, id, dto.studentId);
   }
-  @Delete(':id/students/:studentId') unenroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Param('studentId') studentId: string) {
+  @Can('classes.write') @Delete(':id/students/:studentId') unenroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Param('studentId') studentId: string) {
     return this.svc.unenroll(u.tenantId, id, studentId);
   }
 }

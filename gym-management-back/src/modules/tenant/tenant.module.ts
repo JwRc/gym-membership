@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { initials, num } from '../../common/util';
@@ -90,7 +90,7 @@ export class TenantService {
   }
 }
 
-@Roles('ADMIN')
+@Can('settings.read')
 @Controller('tenant')
 export class TenantController {
   constructor(private readonly svc: TenantService) {}
@@ -98,19 +98,19 @@ export class TenantController {
   @Get() get(@CurrentUser() u: AuthUser) {
     return this.svc.get(u.tenantId);
   }
-  @Patch() update(@CurrentUser() u: AuthUser, @Body() dto: UpdateTenantDto) {
+  @Can('settings.write') @Patch() update(@CurrentUser() u: AuthUser, @Body() dto: UpdateTenantDto) {
     return this.svc.update(u.tenantId, dto);
   }
-  @Get('onboarding') onboarding(@CurrentUser() u: AuthUser) {
+  @Can('dashboard.read') @Get('onboarding') onboarding(@CurrentUser() u: AuthUser) {
     return this.svc.onboarding(u.tenantId);
   }
-  @Post('plans') addPlan(@CurrentUser() u: AuthUser, @Body() dto: PlanDto) {
+  @Can('settings.write') @Post('plans') addPlan(@CurrentUser() u: AuthUser, @Body() dto: PlanDto) {
     return this.svc.addPlan(u.tenantId, dto);
   }
-  @Delete('plans/:id') removePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('settings.write') @Delete('plans/:id') removePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.removePlan(u.tenantId, id);
   }
-  @Post('instructors') addInstructor(@CurrentUser() u: AuthUser, @Body() dto: InstructorDto) {
+  @Can('settings.write') @Post('instructors') addInstructor(@CurrentUser() u: AuthUser, @Body() dto: InstructorDto) {
     return this.svc.addInstructor(u.tenantId, dto);
   }
 }

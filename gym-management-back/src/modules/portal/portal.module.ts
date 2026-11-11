@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, ForbiddenException, Get, Injectable, Module, NotFoundException, Param, Post } from '@nestjs/common';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { WEEKDAYS, hm, nowMinutes, num, today, weekdayMon0 } from '../../common/util';
@@ -67,7 +67,7 @@ export class PortalService {
   }
 }
 
-@Roles('STUDENT')
+@Can('portal.self')
 @Controller('me')
 export class PortalController {
   constructor(private readonly svc: PortalService) {}
