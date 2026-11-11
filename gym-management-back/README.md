@@ -40,7 +40,8 @@ npm run ops:reset-password -- --email fulano@x.com
 | --- | --- |
 | `npm run start:dev` | API com reload |
 | `npm run build` / `start:prod` | build e execução de produção |
-| `npm test` | testes unitários das regras de domínio (`node:test`) |
+| `npm test` | testes unitários (domínio, importação, guard de permissões) com `node:test` |
+| `npm run test:e2e` | build + testes e2e contra o Postgres de `DATABASE_URL` (isolamento entre academias) |
 | `npm run typecheck` | checagem de tipos |
 | `npm run prisma:migrate` / `prisma:deploy` | migrations (dev / produção) |
 | `npm run db:seed` | dados de demonstração |
@@ -117,5 +118,4 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 - **Área do aluno (V3):** o `PortalModule` existe em `src/modules/portal/`, mas não está registrado. O Pix dele é fictício.
 - **Recuperação de senha por e-mail:** não implementada. Na V1 o suporte redefine com `npm run ops:reset-password`.
 - **Notificações:** o processor só registra no log.
-- Ainda não há testes e2e da API; os testes cobrem as regras de domínio.
 - `APP_TODAY=YYYY-MM-DD` fixa a data de "hoje" (útil para demonstrações; ignorado em produção).
