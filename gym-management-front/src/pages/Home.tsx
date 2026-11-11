@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../api/client';
-import type { Belt as BeltT, FinanceSummary } from '../api/types';
+import type { FinanceSummary } from '../api/types';
 import { useApp } from '../auth/AppContext';
-import { Avatar, Belt, ErrorBox, ICONS, Icon, Loading } from '../components/ui';
-import { GraduationModal, TransactionModal } from '../modals/basic';
+import { Avatar, ErrorBox, ICONS, Icon, Loading } from '../components/ui';
+import { TransactionModal } from '../modals/basic';
 import { StudentModal } from '../modals/StudentModal';
 import { MONTHS, brl, firstName, greeting, longDate, pct, signedBrl } from '../lib/format';
 
@@ -15,7 +15,6 @@ interface Dash {
   finance: FinanceSummary & { invoices: { total: number; paid: number; late: number; dueToday: number; pctPaid: number; wPaid: number; wLate: number; wDue: number } };
   todayClasses: { id: string; name: string; color: string; instructor: string | null; start: string; end: string; count: number; state: 'done' | 'live' | 'next'; label: string }[];
   late: { count: number; total: number; rows: { id: string; name: string; initials: string; dueDate: string; amount: number; days: number }[] };
-  eligible: { count: number; rows: { studentId: string; name: string; initials: string; disciplineId: string; discipline: string; from: BeltT; to: BeltT; toLabel: string }[] };
 }
 interface Onboarding {
   code: string; name: string; complete: boolean; done: number; total: number;
@@ -83,7 +82,7 @@ function Dashboard() {
   const { me } = useApp();
   const nav = useNavigate();
   const q = useQuery({ queryKey: ['dashboard'], queryFn: () => get<Dash>('/dashboard'), refetchInterval: 5 * 60_000 });
-  const [modal, setModal] = useState<null | 'tx' | 'student' | { grad: string; student: string }>(null);
+  const [modal, setModal] = useState<null | 'tx' | 'student'>(null);
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const d = q.data!;
@@ -177,7 +176,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid3">
+      <div className="grid2">
         <div className="card">
           <div className="card-h"><div className="card-t">Turmas de hoje</div><div className="card-link" onClick={() => nav('/turmas')}>Calendário</div></div>
           <div style={{ padding: '6px 0' }}>
@@ -219,36 +218,10 @@ function Dashboard() {
           </div>
           <div className="card-foot"><span>Total em atraso</span><span className="num" style={{ color: 'var(--bad)', fontWeight: 600 }}>{brl(d.late.total)}</span></div>
         </div>
-
-        <div className="card">
-          <div className="card-h">
-            <div className="card-t">Aptos a graduar{d.eligible.count > 0 && <span className="pill pill-gold" style={{ fontWeight: 600, padding: '2px 7px' }}>{d.eligible.count}</span>}</div>
-            <div className="card-link" onClick={() => nav('/graduacao')}>Graduação</div>
-          </div>
-          <div style={{ padding: '6px 0' }}>
-            {d.eligible.rows.map((a) => (
-              <div key={a.studentId + a.disciplineId} className="row gap12" style={{ padding: '8px 18px' }}>
-                <Avatar name={a.name} initials={a.initials} />
-                <div className="grow">
-                  <div className="ellipsis" style={{ fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }} onClick={() => open(a.studentId)}>{a.name}</div>
-                  <div className="row gap6" style={{ marginTop: 4, fontSize: 11.5, color: 'var(--mute)' }}>
-                    <Belt b={a.from} w={22} h={7} />
-                    <Icon d={ICONS.arrowR} size={10} width={2.4} />
-                    <Belt b={a.to} w={22} h={7} />
-                    <span className="ellipsis">{a.discipline} · {a.toLabel}</span>
-                  </div>
-                </div>
-                <button className="btn-gold" onClick={() => setModal({ grad: a.disciplineId, student: a.studentId })}>Graduar</button>
-              </div>
-            ))}
-            {!d.eligible.rows.length && <div className="empty" style={{ padding: 32 }}>Ninguém apto no momento.</div>}
-          </div>
-        </div>
       </div>
 
       {modal === 'tx' && <TransactionModal onClose={() => setModal(null)} />}
       {modal === 'student' && <StudentModal onClose={() => setModal(null)} />}
-      {modal && typeof modal === 'object' && <GraduationModal disciplineId={modal.grad} studentId={modal.student} onClose={() => setModal(null)} />}
     </div>
   );
 }

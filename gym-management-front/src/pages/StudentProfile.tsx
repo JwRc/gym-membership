@@ -30,7 +30,7 @@ export function StudentProfilePage() {
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const s = q.data!;
-  const firstGrad = s.ranks.find((r) => r.eligible && r.next) ?? s.ranks.find((r) => r.next);
+  const firstGrad = s.ranks.find((r) => r.next);
 
   return (
     <div className="page">

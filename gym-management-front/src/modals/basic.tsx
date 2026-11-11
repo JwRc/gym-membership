@@ -132,7 +132,7 @@ export function LaunchInvoiceModal({ student, onClose }: { student: Pick<Student
 }
 
 interface GradOverview {
-  rows: { studentId: string; name: string; belt: { label: string }; eligible: boolean; canPromote: boolean }[];
+  rows: { studentId: string; name: string; belt: { label: string }; canPromote: boolean }[];
   discipline: { name: string } | null;
 }
 interface Preview {
@@ -140,12 +140,10 @@ interface Preview {
   to: Parameters<typeof Belt>[0]['b'] | null;
   instructor: string | null;
   date: string;
-  eligible: boolean;
-  info: string;
 }
 
 export function GraduationModal({ disciplineId, studentId, onClose }: { disciplineId: string; studentId?: string; onClose: () => void }) {
-  const list = useQuery({ queryKey: ['graduation', disciplineId, false], queryFn: () => get<GradOverview>('/graduation', { disciplineId }) });
+  const list = useQuery({ queryKey: ['graduation', disciplineId], queryFn: () => get<GradOverview>('/graduation', { disciplineId }) });
   const opts = (list.data?.rows ?? []).filter((r) => r.canPromote);
   const [sid, setSid] = useState(studentId ?? '');
   const current = sid || opts[0]?.studentId || '';
@@ -164,7 +162,7 @@ export function GraduationModal({ disciplineId, studentId, onClose }: { discipli
     <Modal title="Registrar graduação" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy || !p?.to} onClick={confirm}>Confirmar graduação</button></>}>
       <Field label={`Aluno · ${list.data?.discipline?.name ?? ''}`}>
         <select className="input" value={current} onChange={(e) => setSid(e.target.value)}>
-          {opts.map((o) => <option key={o.studentId} value={o.studentId}>{o.name} — {o.belt.label}{o.eligible ? ' · apto' : ''}</option>)}
+          {opts.map((o) => <option key={o.studentId} value={o.studentId}>{o.name} — {o.belt.label}</option>)}
         </select>
       </Field>
       {p && (
@@ -188,7 +186,6 @@ export function GraduationModal({ disciplineId, studentId, onClose }: { discipli
             <Field label="Data"><div style={{ fontSize: 13.5 }}>{p.date}</div></Field>
             <Field label="Professor"><div style={{ fontSize: 13.5 }}>{p.instructor ?? '—'}</div></Field>
           </div>
-          {p.eligible ? <div style={{ fontSize: 12.5, color: 'var(--mute)' }}>{p.info}</div> : <Alert warn>{p.info}</Alert>}
         </>
       )}
       {m.err && <Alert>{m.err}</Alert>}

@@ -23,11 +23,6 @@ export interface RankView {
   belt: Belt;
   next: { levelOrder: number; degree: number; belt: Belt } | null;
   nextLabel: string;
-  eligible: boolean;
-  pct: number | null;
-  status: string;
-  classesSince: number;
-  requirement: { months: number; classes: number; kind: 'degree' | 'level' } | null;
   since: string;
   timeInRank: string;
   history?: { title: string; date: string; color: string; instructor: string | null }[];

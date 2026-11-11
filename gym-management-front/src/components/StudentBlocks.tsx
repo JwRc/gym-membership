@@ -1,6 +1,5 @@
 import type { StudentDetail } from '../api/types';
-import { Belt, Progress } from './ui';
-import { pct } from '../lib/format';
+import { Belt } from './ui';
 
 /** Cartão "Graduação" (ficha do aluno e portal). */
 export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onGrad?: (disciplineId: string) => void }) {
@@ -13,7 +12,7 @@ export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onG
             <span className="row gap8" style={{ fontSize: 12.5, color: 'var(--mute)', fontWeight: 500 }}>
               <span className="sq" style={{ background: g.discipline.color }} />{g.discipline.name}
             </span>
-            {g.eligible && (onGrad ? <button className="btn-gold" onClick={() => onGrad(g.discipline.id)}>Apto a graduar</button> : <span className="pill pill-gold">Apto a graduar</span>)}
+            {g.next && onGrad && <button className="btn btn-sm" onClick={() => onGrad(g.discipline.id)}>Registrar graduação</button>}
           </div>
           <div className="row gap16" style={{ marginTop: 12 }}>
             <Belt b={g.belt} w={96} h={20} />
@@ -22,15 +21,7 @@ export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onG
               <div style={{ fontSize: 12.5, color: 'var(--mute)', marginTop: 2 }}>Há {g.since}</div>
             </div>
           </div>
-          {g.requirement && (
-            <div style={{ marginTop: 14 }}>
-              <div className="row between" style={{ fontSize: 12, color: 'var(--mute)', marginBottom: 6 }}>
-                <span>{g.nextLabel} · {g.classesSince}/{g.requirement.classes} aulas</span>
-                <span className="num" style={{ color: g.eligible ? 'var(--gold)' : 'var(--text2)' }}>{g.eligible ? 'Apto' : `${pct(g.pct ?? 0)} · ${g.status}`}</span>
-              </div>
-              <Progress value={g.pct} color={g.eligible ? 'var(--gold)' : g.discipline.color} />
-            </div>
-          )}
+          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--mute)' }}>{g.nextLabel} · última graduação há {g.timeInRank}</div>
           {!!g.history.length && (
             <div style={{ marginTop: 16 }}>
               {g.history.map((h, k) => (
