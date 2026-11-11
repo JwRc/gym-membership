@@ -37,3 +37,20 @@ export const PAYMENT_OPTIONS = [
   { v: 'DEBIT', label: 'Cartão de débito' },
   { v: 'CREDIT', label: 'Cartão de crédito' },
 ] as const;
+
+/** Nome de arquivo seguro a partir de um texto (sem acentos/espaços). */
+export function fileSlug(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'arquivo';
+}
+
+/** Faz o navegador baixar um Blob com o nome indicado. */
+export function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

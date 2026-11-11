@@ -1,7 +1,9 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { CacheService } from '../../common/redis/redis.module';
+import { AuditService } from '../../common/audit/audit.module';
+import { AuthUser } from '../../common/auth/auth.types';
+import { CacheService } from '../../common/cache/cache.module';
 import { brDate, dateOnly, diffDays, initials, iso, num, today, ymd } from '../../common/util';
 import { promotionTitle } from '../../domain/graduation';
 import { toRules } from '../../domain/rules-mapper';
@@ -19,6 +21,7 @@ export class StudentsService {
     private readonly q: AcademyQueries,
     private readonly cache: CacheService,
     private readonly invoices: InvoicesService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(tenantId: string, f: ListStudentsQuery) {
@@ -45,8 +48,8 @@ export class StudentsService {
 
   async detail(tenantId: string, id: string) {
     const disc = await this.q.disciplines(tenantId);
-    const s = await this.prisma.student.findFirstOrThrow({
-      where: { id, tenantId },
+    const s = await this.prisma.student.findFirst({
+      where: { id, tenantId, anonymizedAt: null },
       include: {
         plan: true,
         user: { select: { id: true } },
@@ -55,6 +58,7 @@ export class StudentsService {
         enrollments: { include: { classGroup: { include: { slots: true, instructor: true, discipline: true } } } },
       },
     });
+    if (!s) throw new NotFoundException('Aluno não encontrado.');
     const t = today();
     const row = (await this.q.studentRows(tenantId)).find((r) => r.id === id)!;
     const fin = await this.invoices.forStudent(tenantId, id);
@@ -77,6 +81,7 @@ export class StudentsService {
       plan: s.plan ? { id: s.plan.id, name: s.plan.name } : null,
       hasAccess: !!s.user,
       medicalNotes: s.medicalNotes,
+      consentAt: s.consentAt?.toISOString() ?? null,
       guardian: s.guardianName ? { name: s.guardianName, relation: s.guardianRelation, phone: s.guardianPhone } : null,
       ranks: s.ranks
         .filter((r) => disc.has(r.disciplineId))
@@ -123,6 +128,7 @@ export class StudentsService {
             monthlyFee: dto.monthlyFee, dueDay: dto.dueDay, startDate: start, planId: dto.planId || null,
             medicalNotes: dto.medicalNotes || null, guardianName: dto.guardianName || null,
             guardianRelation: dto.guardianRelation || null, guardianPhone: dto.guardianPhone || null,
+            consentAt: new Date(),
           },
         });
         for (const r of dto.ranks) await this.addRank(tx, s.id, disc.get(r.disciplineId)!, r.levelOrder, r.degree ?? 0, start);
@@ -149,7 +155,8 @@ export class StudentsService {
   async update(tenantId: string, id: string, dto: UpdateStudentDto) {
     await this.q.studentOr404(tenantId, id);
     const disc = await this.q.disciplines(tenantId);
-    const { classGroupIds, addRanks, birthDate, email, planId, ...rest } = dto;
+    const current = await this.prisma.student.findUniqueOrThrow({ where: { id }, select: { consentAt: true } });
+    const { classGroupIds, addRanks, birthDate, email, planId, consent, ...rest } = dto;
     await this.prisma.$transaction(async (tx) => {
       await tx.student.update({
         where: { id },
@@ -158,6 +165,9 @@ export class StudentsService {
           ...(birthDate ? { birthDate: dateOnly(birthDate) } : {}),
           ...(email ? { email: email.trim().toLowerCase() } : {}),
           ...(planId !== undefined ? { planId: planId || null } : {}),
+          // mantém a data original do consentimento; desmarcar registra a revogação
+          ...(consent === true && !current.consentAt ? { consentAt: new Date() } : {}),
+          ...(consent === false ? { consentAt: null } : {}),
         },
       });
       if (classGroupIds) {
@@ -172,6 +182,72 @@ export class StudentsService {
       }
     });
     return { id };
+  }
+
+  /** LGPD: todos os dados do aluno, para entregar a ele (portabilidade/acesso). */
+  async exportData(user: AuthUser, id: string) {
+    const s = await this.prisma.student.findFirst({
+      where: { id, tenantId: user.tenantId, anonymizedAt: null },
+      include: {
+        tenant: { select: { name: true, cnpj: true } },
+        plan: true,
+        ranks: { include: { discipline: { select: { name: true } } } },
+        promotions: { include: { discipline: { select: { name: true } } }, orderBy: { date: 'asc' } },
+        enrollments: { include: { classGroup: { select: { name: true } } } },
+        invoices: { orderBy: [{ year: 'asc' }, { month: 'asc' }] },
+        sales: { include: { items: { include: { product: { select: { name: true } } } } }, orderBy: { date: 'asc' } },
+        user: { select: { email: true, createdAt: true } },
+      },
+    });
+    if (!s) throw new NotFoundException('Aluno não encontrado.');
+    await this.audit.record({ tenantId: user.tenantId, userId: user.sub, action: 'students.export', entity: 'students', entityId: id });
+    return {
+      exportadoEm: new Date().toISOString(),
+      controlador: { academia: s.tenant.name, cnpj: s.tenant.cnpj },
+      aluno: {
+        nome: s.name, sexo: s.gender, dataNascimento: iso(s.birthDate), email: s.email, telefone: s.phone,
+        situacao: s.status, dataInicio: iso(s.startDate), plano: s.plan?.name ?? null, mensalidade: num(s.monthlyFee), diaVencimento: s.dueDay,
+        observacoesMedicas: s.medicalNotes,
+        responsavel: s.guardianName ? { nome: s.guardianName, parentesco: s.guardianRelation, telefone: s.guardianPhone } : null,
+        consentimentoEm: s.consentAt?.toISOString() ?? null,
+        cadastradoEm: s.createdAt.toISOString(),
+        acessoAoSistema: s.user ? { email: s.user.email, criadoEm: s.user.createdAt.toISOString() } : null,
+      },
+      graduacoes: s.ranks.map((r) => ({ modalidade: r.discipline.name, nivel: r.levelOrder, grau: r.degree, desde: iso(r.levelSince) })),
+      historicoGraduacoes: s.promotions.map((p) => ({ modalidade: p.discipline.name, titulo: p.title, data: iso(p.date), professor: p.instructorName })),
+      turmas: s.enrollments.map((e) => e.classGroup.name),
+      mensalidades: s.invoices.map((i) => ({ referencia: `${String(i.month).padStart(2, '0')}/${i.year}`, vencimento: iso(i.dueDate), valor: num(i.amount), situacao: i.status, pagaEm: iso(i.paidAt), formaPagamento: i.paymentMethod })),
+      compras: s.sales.map((v) => ({ numero: v.number, data: iso(v.date), formaPagamento: v.paymentMethod, itens: v.items.map((it) => ({ produto: it.product.name, quantidade: it.qty, valorUnitario: num(it.unitPrice) })) })),
+    };
+  }
+
+  /**
+   * LGPD: apaga os dados pessoais a pedido do titular. Mensalidades pagas e
+   * vendas ficam (registros financeiros), sem identificação. Mensalidades em
+   * aberto, que não movimentaram dinheiro, são excluídas.
+   */
+  async anonymize(user: AuthUser, id: string) {
+    const s = await this.prisma.student.findFirst({ where: { id, tenantId: user.tenantId, anonymizedAt: null }, select: { id: true } });
+    if (!s) throw new NotFoundException('Aluno não encontrado.');
+    const removed = 'Aluno removido';
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.student.update({
+        where: { id },
+        data: {
+          name: removed, email: `removido-${id}@anon.invalid`, phone: null, gender: null, birthDate: dateOnly('1900-01-01'),
+          medicalNotes: null, guardianName: null, guardianRelation: null, guardianPhone: null,
+          status: 'INACTIVE', consentAt: null, anonymizedAt: new Date(), planId: null,
+        },
+      });
+      await tx.user.deleteMany({ where: { studentId: id } });
+      await tx.enrollment.deleteMany({ where: { studentId: id } });
+      const open = await tx.invoice.deleteMany({ where: { studentId: id, status: { in: ['PENDING', 'OVERDUE'] }, transaction: null } });
+      // lançamentos de mensalidade levam o nome do aluno na descrição
+      await tx.transaction.updateMany({ where: { invoice: { studentId: id } }, data: { description: `Mensalidade · ${removed}` } });
+      return { openInvoicesRemoved: open.count };
+    });
+    await this.audit.record({ tenantId: user.tenantId, userId: user.sub, action: 'students.anonymize', entity: 'students', entityId: id, meta: result });
+    return { ok: true, ...result };
   }
 
   private async addRank(tx: Prisma.TransactionClient, studentId: string, d: Parameters<typeof toRules>[0], levelOrder: number, degree: number, date: Date) {

@@ -107,7 +107,7 @@ export class InvoicesService {
 
   /** Gera as mensalidades do mês para todos os alunos ativos (idempotente). Usado pelo job de cobrança. */
   async generateMonth(tenantId: string, year: number, month: number) {
-    const students = await this.prisma.student.findMany({ where: { tenantId, status: { in: ['ACTIVE', 'LOCKED'] } } });
+    const students = await this.prisma.student.findMany({ where: { tenantId, anonymizedAt: null, status: { in: ['ACTIVE', 'LOCKED'] } } });
     const existing = new Set(
       (await this.prisma.invoice.findMany({ where: { tenantId, year, month }, select: { studentId: true } })).map((i) => i.studentId),
     );

@@ -13,8 +13,6 @@ import { FinancePage } from './pages/Finance';
 import { StorePage } from './pages/Store';
 import { DisciplinesPage } from './pages/Disciplines';
 import { SettingsPage } from './pages/Settings';
-import { PortalHomePage } from './pages/portal/PortalHome';
-import { PortalInvoicesPage } from './pages/portal/PortalInvoices';
 
 export function App() {
   const { me, booting } = useApp();
@@ -24,17 +22,6 @@ export function App() {
       <Routes>
         <Route path="/entrar" element={<AuthPage />} />
         <Route path="*" element={<Navigate to="/entrar" replace />} />
-      </Routes>
-    );
-
-  if (me.role === 'STUDENT')
-    return (
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<PortalHomePage />} />
-          <Route path="mensalidades" element={<PortalInvoicesPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
 

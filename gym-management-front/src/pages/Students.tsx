@@ -5,6 +5,8 @@ import { get } from '../api/client';
 import type { StudentRow, Tag } from '../api/types';
 import { Avatar, Belt, ErrorBox, FinancePill, ICONS, Icon, Loading, Seg, StatusPill } from '../components/ui';
 import { StudentModal } from '../modals/StudentModal';
+import { ImportStudentsModal } from '../modals/ImportStudentsModal';
+import { useApp } from '../auth/AppContext';
 import { brl } from '../lib/format';
 import { soft } from '../lib/theme';
 
@@ -20,6 +22,8 @@ export function StudentsPage() {
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'all'>('ACTIVE');
   const finance = sp.get('finance') ?? 'all';
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const { can } = useApp();
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,7 +59,10 @@ export function StudentsPage() {
           <h1>Alunos</h1>
           <div className="page-sub">{d ? `${d.counts.ACTIVE} ativos · ${d.total} no total` : ' '}</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon d={ICONS.plus} size={14} width={2.2} />Novo aluno</button>
+        <div className="row gap8">
+          {can('students.import') && <button className="btn" onClick={() => setImporting(true)}>Importar planilha</button>}
+          <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon d={ICONS.plus} size={14} width={2.2} />Novo aluno</button>
+        </div>
       </div>
       <div className="row gap10 wrap">
         <div className="search" style={{ width: 280 }}>
@@ -106,6 +113,7 @@ export function StudentsPage() {
         {d && <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--mute2)' }}>{d.rows.length} aluno(s) exibido(s)</div>}
       </div>
       {creating && <StudentModal onClose={() => setCreating(false)} />}
+      {importing && <ImportStudentsModal onClose={() => setImporting(false)} />}
     </div>
   );
 }

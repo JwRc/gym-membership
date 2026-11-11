@@ -12,6 +12,11 @@ import { CATALOG } from '../src/domain/catalog';
 import { DisciplineRules, promotionTitle, requirementFor } from '../src/domain/graduation';
 import { addDays, dateOnly, today, ymd } from '../src/common/util';
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('Seed de demonstração bloqueado em produção (NODE_ENV=production).');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient();
 const T0 = today();
 const Y0 = T0.getUTCFullYear();

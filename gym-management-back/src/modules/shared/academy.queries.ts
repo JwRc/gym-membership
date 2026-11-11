@@ -1,7 +1,7 @@
 import { Global, Injectable, Module, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { diffDays, initials, iso, num, today } from '../../common/util';
-import { beltVisual, progress } from '../../domain/graduation';
+import { beltVisual, nextRank } from '../../domain/graduation';
 import { DisciplineWithLevels, toRules } from '../../domain/rules-mapper';
 import { financeSituation } from '../../domain/invoices';
 
@@ -42,23 +42,21 @@ export class AcademyQueries {
     return { id: d.id, name: d.name, color: d.color };
   }
 
-  /** Graduação de um aluno numa modalidade, com progresso e próxima graduação. */
+  /**
+   * Graduação de um aluno numa modalidade e a próxima graduação possível.
+   * Na V1 a graduação é manual (o professor decide): não há cálculo de aptidão
+   * por tempo/aulas, porque a presença não é registrada.
+   */
   rankView(d: DisciplineFull, r: { levelOrder: number; degree: number; levelSince: Date; lastPromotionAt: Date; classesSince: number }, t = today()) {
     const rules = toRules(d);
-    const p = progress(rules, r, t);
-    const nextLabel = p.next ? 'Próxima: ' + beltVisual(rules, p.next.levelOrder, p.next.degree).label : 'Graduação máxima';
+    const nx = nextRank(rules, r);
     return {
       discipline: this.disciplineTag(d),
       levelOrder: r.levelOrder,
       degree: r.degree,
       belt: beltVisual(rules, r.levelOrder, r.degree),
-      next: p.next ? { ...p.next, belt: beltVisual(rules, p.next.levelOrder, p.next.degree) } : null,
-      nextLabel,
-      eligible: p.eligible,
-      pct: p.pct,
-      status: p.status,
-      classesSince: r.classesSince,
-      requirement: p.requirement,
+      next: nx ? { ...nx, belt: beltVisual(rules, nx.levelOrder, nx.degree) } : null,
+      nextLabel: nx ? 'Próxima: ' + beltVisual(rules, nx.levelOrder, nx.degree).label : 'Graduação máxima',
       sinceDays: diffDays(r.levelSince, t),
       since: duration(diffDays(r.levelSince, t)),
       lastPromotionAt: iso(r.lastPromotionAt),
@@ -72,7 +70,7 @@ export class AcademyQueries {
       this.tenant(tenantId),
       this.disciplines(tenantId),
       this.prisma.student.findMany({
-        where: { tenantId },
+        where: { tenantId, anonymizedAt: null },
         include: {
           ranks: true,
           invoices: { where: { status: { in: ['PENDING', 'OVERDUE'] } }, select: { status: true, dueDate: true, amount: true, id: true } },
@@ -105,7 +103,7 @@ export class AcademyQueries {
   }
 
   async studentOr404(tenantId: string, id: string) {
-    const s = await this.prisma.student.findFirst({ where: { id, tenantId } });
+    const s = await this.prisma.student.findFirst({ where: { id, tenantId, anonymizedAt: null } });
     if (!s) throw new NotFoundException('Aluno não encontrado.');
     return s;
   }

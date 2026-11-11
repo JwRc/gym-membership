@@ -3,8 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // conexão direta para migrations (com pooler, como no Neon, a DATABASE_URL passa pelo pooler)
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ model Tenant {
   transactions Transaction[]
   products     Product[]
   sales        Sale[]
+  auditLogs    AuditLog[]
 }
 
 model User {
@@ -92,7 +95,25 @@ model User {
   role         Role
   studentId    String?  @unique
   student      Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// incrementado ao trocar a senha: tokens com versão antiga deixam de valer
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
+}
+
+/// Quem fez o quê: toda escrita de usuário logado e ações sensíveis (login, import, export, anonimização).
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entity, entityId])
 }
 
 model Instructor {
@@ -206,6 +227,10 @@ model Student {
   guardianPhone    String?
   planId           String?
   plan             Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  /// LGPD: quando o aluno (ou responsável) autorizou o uso dos dados, inclusive de saúde
+  consentAt        DateTime?
+  /// LGPD: dados pessoais apagados a pedido; mensalidades e vendas ficam (registros financeiros)
+  anonymizedAt     DateTime?
   createdAt        DateTime      @default(now())
 
   user        User?

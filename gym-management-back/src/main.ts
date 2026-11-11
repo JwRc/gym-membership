@@ -1,26 +1,12 @@
 import 'reflect-metadata';
-import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import helmet from 'helmet';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.use(helmet());
-  app.enableCors({ origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(','), credentials: true });
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      // devolve a primeira mensagem de validação como texto simples (o front mostra direto)
-      exceptionFactory: (errors) => {
-        const first = errors[0];
-        const msg = first?.constraints ? Object.values(first.constraints)[0] : 'Dados inválidos.';
-        return new BadRequestException(msg);
-      },
-    }),
-  );
+  const app = configureApp(await NestFactory.create<NestExpressApplication>(AppModule));
   app.enableShutdownHooks();
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);

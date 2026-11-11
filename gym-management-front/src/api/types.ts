@@ -7,6 +7,8 @@ export interface Me {
   name: string;
   email: string;
   role: Role;
+  /** permissões do perfil (base do RBAC; na V1 o admin tem todas) */
+  permissions: string[];
   studentId: string | null;
   tenant: { id: string; name: string; initials: string; code: string; disciplines: string[] };
 }
@@ -23,11 +25,6 @@ export interface RankView {
   belt: Belt;
   next: { levelOrder: number; degree: number; belt: Belt } | null;
   nextLabel: string;
-  eligible: boolean;
-  pct: number | null;
-  status: string;
-  classesSince: number;
-  requirement: { months: number; classes: number; kind: 'degree' | 'level' } | null;
   since: string;
   timeInRank: string;
   history?: { title: string; date: string; color: string; instructor: string | null }[];
@@ -52,6 +49,8 @@ export interface StudentDetail {
   email: string; phone: string | null; birthDate: string; age: number; startDate: string; since: string;
   monthlyFee: number; dueDay: number; plan: { id: string; name: string } | null; hasAccess: boolean;
   medicalNotes: string | null; guardian: { name: string; relation: string | null; phone: string | null } | null;
+  /** LGPD: quando o aluno/responsável autorizou o uso dos dados */
+  consentAt: string | null;
   ranks: (RankView & { history: NonNullable<RankView['history']> })[];
   classes: { id: string; name: string; color: string; instructor: string | null; days: string; time: string }[];
   invoices: StudentInvoices;

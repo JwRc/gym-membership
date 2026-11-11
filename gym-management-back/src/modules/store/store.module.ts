@@ -1,15 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Injectable, Module, NotFoundException, Param, Patch, Post } from '@nestjs/common';
-import { InjectQueue, BullModule } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { BadRequestException, Body, Controller, Get, Injectable, Logger, Module, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { PAYMENT_LABEL, dateOnly, iso, money, monthRange, num, today } from '../../common/util';
 import { PRODUCT_CATEGORIES } from '../../domain/catalog';
-import { NOTIFICATIONS_QUEUE, NotificationJobs } from '../jobs/queues';
 
 class ProductDto {
   @IsString() @MinLength(2) name: string;
@@ -32,10 +29,8 @@ class SaleDto {
 
 @Injectable()
 export class StoreService {
-  constructor(
-    private readonly prisma: PrismaService,
-    @InjectQueue(NOTIFICATIONS_QUEUE) private readonly notifications: Queue,
-  ) {}
+  private readonly log = new Logger(StoreService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
   async overview(tenantId: string) {
     const t = today();
@@ -105,7 +100,7 @@ export class StoreService {
       const p = P.get(i.productId)!;
       if (p.stock < i.qty) throw new BadRequestException(`Estoque insuficiente de ${p.name} (${p.stock} em estoque).`);
     }
-    if (dto.studentId && !(await this.prisma.student.findFirst({ where: { id: dto.studentId, tenantId } })))
+    if (dto.studentId && !(await this.prisma.student.findFirst({ where: { id: dto.studentId, tenantId, anonymizedAt: null } })))
       throw new BadRequestException('Aluno inválido.');
 
     const date = dto.date ? dateOnly(dto.date) : today();
@@ -136,15 +131,13 @@ export class StoreService {
     });
 
     const low = await this.prisma.product.findMany({ where: { id: { in: ids } } });
-    for (const p of low.filter((p) => p.stock <= p.minStock))
-      await this.notifications
-        .add(NotificationJobs.LOW_STOCK, { tenantId, productId: p.id, name: p.name, stock: p.stock }, { jobId: `low-stock:${p.id}:${p.stock}`, removeOnComplete: 100 })
-        .catch(() => undefined);
+    // aviso de estoque baixo: na V1 só no log (notificações ficam para a V2)
+    for (const p of low.filter((p) => p.stock <= p.minStock)) this.log.warn(`Estoque baixo: ${p.name} (${p.stock} un.) · academia ${tenantId}`);
     return { id: sale.id, number: sale.number, total, cost, profit: money(total - cost) };
   }
 }
 
-@Roles('ADMIN')
+@Can('store.read')
 @Controller('store')
 export class StoreController {
   constructor(private readonly svc: StoreService) {}
@@ -152,19 +145,18 @@ export class StoreController {
   @Get() overview(@CurrentUser() u: AuthUser) {
     return this.svc.overview(u.tenantId);
   }
-  @Post('products') createProduct(@CurrentUser() u: AuthUser, @Body() dto: ProductDto) {
+  @Can('store.write') @Post('products') createProduct(@CurrentUser() u: AuthUser, @Body() dto: ProductDto) {
     return this.svc.createProduct(u.tenantId, dto);
   }
-  @Patch('products/:id') updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
+  @Can('store.write') @Patch('products/:id') updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
     return this.svc.updateProduct(u.tenantId, id, dto);
   }
-  @Post('sales') createSale(@CurrentUser() u: AuthUser, @Body() dto: SaleDto) {
+  @Can('store.sell') @Post('sales') createSale(@CurrentUser() u: AuthUser, @Body() dto: SaleDto) {
     return this.svc.createSale(u.tenantId, dto);
   }
 }
 
 @Module({
-  imports: [BullModule.registerQueue({ name: NOTIFICATIONS_QUEUE })],
   controllers: [StoreController],
   providers: [StoreService],
 })

@@ -67,6 +67,7 @@ h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-0.025em}
 .btn:hover{background:var(--bd)}
 .btn:disabled{opacity:.55;cursor:default}
 .btn-primary{background:var(--brand);border:none;color:#fff}.btn-primary:hover{background:var(--brand2)}
+.btn-danger{background:var(--bad);border:none;color:#fff}.btn-danger:hover{filter:brightness(1.08)}.btn-danger:disabled,.btn-primary:disabled{opacity:.55;cursor:not-allowed}
 .btn-ghost{background:transparent;border:1px solid var(--bd3)}.btn-ghost:hover{background:var(--btn)}
 .btn-gold{height:26px;padding:0 10px;border-radius:7px;background:rgba(217,164,65,0.12);border:1px solid rgba(217,164,65,0.28);color:var(--gold2);font-size:12px;font-weight:500;cursor:pointer}
 .btn-gold:hover{background:rgba(217,164,65,0.2)}

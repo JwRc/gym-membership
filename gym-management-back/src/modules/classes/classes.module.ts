@@ -2,11 +2,11 @@ import {
   BadRequestException, Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post, Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { IsInt, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
-import { dateOnly, initials, today } from '../../common/util';
+import { initials } from '../../common/util';
 import { findConflicts, slotSummary } from '../../domain/schedule';
 
 const OPEN_MIN = 6 * 60;
@@ -31,10 +31,6 @@ class UpdateClassDto {
 }
 class EnrollDto {
   @IsString() studentId: string;
-}
-class AttendanceDto {
-  @IsOptional() @IsString() date?: string;
-  @IsArray() @ArrayMinSize(1) @IsString({ each: true }) studentIds: string[];
 }
 
 @Injectable()
@@ -135,7 +131,7 @@ export class ClassesService {
     });
     if (!g) throw new NotFoundException('Turma não encontrada.');
     if (g._count.enrollments >= g.capacity) throw new BadRequestException('Turma lotada.');
-    const s = await this.prisma.student.findFirst({ where: { id: studentId, tenantId } });
+    const s = await this.prisma.student.findFirst({ where: { id: studentId, tenantId, anonymizedAt: null } });
     if (!s) throw new NotFoundException('Aluno não encontrado.');
     await this.prisma.enrollment.upsert({
       where: { studentId_classGroupId: { studentId, classGroupId: id } },
@@ -149,22 +145,6 @@ export class ClassesService {
     await this.groupOr404(tenantId, id);
     await this.prisma.enrollment.deleteMany({ where: { classGroupId: id, studentId } });
     return { ok: true };
-  }
-
-  /** Presença: cada presença nova soma 1 aula para a graduação na modalidade da turma. */
-  async attendance(tenantId: string, id: string, dto: AttendanceDto) {
-    const g = await this.groupOr404(tenantId, id);
-    const date = dto.date ? dateOnly(dto.date) : today();
-    const valid = await this.prisma.student.findMany({ where: { tenantId, id: { in: dto.studentIds } }, select: { id: true } });
-    let added = 0;
-    for (const { id: studentId } of valid) {
-      const r = await this.prisma.attendance.createMany({ data: [{ studentId, classGroupId: id, date }], skipDuplicates: true });
-      if (r.count) {
-        added++;
-        await this.prisma.studentRank.updateMany({ where: { studentId, disciplineId: g.disciplineId }, data: { classesSince: { increment: 1 } } });
-      }
-    }
-    return { added };
   }
 
   private checkSlot(s: SlotDto) {
@@ -182,7 +162,7 @@ export class ClassesService {
   }
 }
 
-@Roles('ADMIN')
+@Can('classes.read')
 @Controller('classes')
 export class ClassesController {
   constructor(private readonly svc: ClassesService) {}
@@ -199,32 +179,29 @@ export class ClassesController {
   ) {
     return this.svc.conflicts(u.tenantId, { weekday: +weekday, startMin: +startMin, endMin: +endMin }, ignoreSlotId);
   }
-  @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateClassDto) {
+  @Can('classes.write') @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateClassDto) {
     return this.svc.create(u.tenantId, dto);
   }
-  @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateClassDto) {
+  @Can('classes.write') @Patch(':id') update(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateClassDto) {
     return this.svc.update(u.tenantId, id, dto);
   }
-  @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('classes.write') @Delete(':id') remove(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.remove(u.tenantId, id);
   }
-  @Post(':id/slots') addSlot(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: SlotDto) {
+  @Can('classes.write') @Post(':id/slots') addSlot(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: SlotDto) {
     return this.svc.addSlot(u.tenantId, id, dto);
   }
-  @Patch('slots/:slotId') moveSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string, @Body() dto: SlotDto) {
+  @Can('classes.write') @Patch('slots/:slotId') moveSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string, @Body() dto: SlotDto) {
     return this.svc.moveSlot(u.tenantId, slotId, dto);
   }
-  @Delete('slots/:slotId') removeSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string) {
+  @Can('classes.write') @Delete('slots/:slotId') removeSlot(@CurrentUser() u: AuthUser, @Param('slotId') slotId: string) {
     return this.svc.removeSlot(u.tenantId, slotId);
   }
-  @Post(':id/students') enroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: EnrollDto) {
+  @Can('classes.write') @Post(':id/students') enroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: EnrollDto) {
     return this.svc.enroll(u.tenantId, id, dto.studentId);
   }
-  @Delete(':id/students/:studentId') unenroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Param('studentId') studentId: string) {
+  @Can('classes.write') @Delete(':id/students/:studentId') unenroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Param('studentId') studentId: string) {
     return this.svc.unenroll(u.tenantId, id, studentId);
-  }
-  @Post(':id/attendance') attendance(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: AttendanceDto) {
-    return this.svc.attendance(u.tenantId, id, dto);
   }
 }
 

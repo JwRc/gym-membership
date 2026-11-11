@@ -1,42 +1,29 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { CurrentUser, Public } from '../../common/auth/decorators';
+import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { Authenticated, CurrentUser, Public } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { AuthService } from './auth.service';
-import { CATALOG } from '../../domain/catalog';
-import { LoginDto, RegisterAcademyDto, RegisterStudentDto } from './auth.dto';
+import { ChangePasswordDto, LoginDto } from './auth.dto';
+import { LoginThrottlerGuard } from './login-throttler.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  @Public() @Post('login')
+  @Public() @Post('login') @HttpCode(200)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
 
-  @Public() @Post('register/academy')
-  registerAcademy(@Body() dto: RegisterAcademyDto) {
-    return this.auth.registerAcademy(dto);
-  }
-
-  @Public() @Post('register/student')
-  registerStudent(@Body() dto: RegisterStudentDto) {
-    return this.auth.registerStudent(dto);
-  }
-
-  /** Catálogo padrão (para o cadastro de academia, antes do login). */
-  @Public() @Get('catalog')
-  catalog() {
-    return CATALOG.map((c) => ({ id: c.id, name: c.name, color: c.color }));
-  }
-
-  @Public() @Get('tenants/:code')
-  tenantByCode(@Param('code') code: string) {
-    return this.auth.tenantByCode(code);
-  }
-
-  @Get('me')
+  @Authenticated() @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user);
+  }
+
+  @Authenticated() @Post('change-password') @HttpCode(200)
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(user, dto);
   }
 }

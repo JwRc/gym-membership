@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post } from '@nestjs/common';
 import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { initials, num } from '../../common/util';
@@ -73,26 +73,24 @@ export class TenantService {
 
   /** "Primeiros passos" para academias recém-criadas. */
   async onboarding(tenantId: string) {
-    const [t, disc, instr, classes, students, studentUsers] = await Promise.all([
+    const [t, disc, instr, classes, students] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
       this.prisma.discipline.count({ where: { tenantId, archived: false } }),
       this.prisma.instructor.findMany({ where: { tenantId }, select: { name: true } }),
       this.prisma.classGroup.count({ where: { tenantId } }),
       this.prisma.student.count({ where: { tenantId } }),
-      this.prisma.user.count({ where: { tenantId, role: 'STUDENT' } }),
     ]);
     const steps = [
       { key: 'disciplines', title: 'Escolher as modalidades', sub: `${disc} configuradas · do catálogo padrão ou próprias`, done: disc > 0, action: 'disciplines', btn: 'Gerenciar' },
       { key: 'instructors', title: 'Cadastrar professores', sub: instr.map((i) => i.name).join(', ') || 'Nenhum professor ainda', done: instr.length > 0, action: 'settings', btn: 'Cadastrar' },
       { key: 'classes', title: 'Montar a grade de turmas', sub: 'Horários semanais por modalidade', done: classes > 0, action: 'classes', btn: 'Montar grade' },
       { key: 'students', title: 'Cadastrar alunos', sub: 'Dados, plano e dia de vencimento de cada um', done: students > 0, action: 'students', btn: 'Cadastrar' },
-      { key: 'access', title: 'Liberar o acesso dos alunos', sub: 'Eles criam a conta com o código da academia', done: studentUsers > 0, action: null, btn: null },
     ];
     return { code: t.code, name: t.name, steps, done: steps.filter((s) => s.done).length, total: steps.length, complete: students > 0 && classes > 0 };
   }
 }
 
-@Roles('ADMIN')
+@Can('settings.read')
 @Controller('tenant')
 export class TenantController {
   constructor(private readonly svc: TenantService) {}
@@ -100,19 +98,19 @@ export class TenantController {
   @Get() get(@CurrentUser() u: AuthUser) {
     return this.svc.get(u.tenantId);
   }
-  @Patch() update(@CurrentUser() u: AuthUser, @Body() dto: UpdateTenantDto) {
+  @Can('settings.write') @Patch() update(@CurrentUser() u: AuthUser, @Body() dto: UpdateTenantDto) {
     return this.svc.update(u.tenantId, dto);
   }
-  @Get('onboarding') onboarding(@CurrentUser() u: AuthUser) {
+  @Can('dashboard.read') @Get('onboarding') onboarding(@CurrentUser() u: AuthUser) {
     return this.svc.onboarding(u.tenantId);
   }
-  @Post('plans') addPlan(@CurrentUser() u: AuthUser, @Body() dto: PlanDto) {
+  @Can('settings.write') @Post('plans') addPlan(@CurrentUser() u: AuthUser, @Body() dto: PlanDto) {
     return this.svc.addPlan(u.tenantId, dto);
   }
-  @Delete('plans/:id') removePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+  @Can('settings.write') @Delete('plans/:id') removePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.svc.removePlan(u.tenantId, id);
   }
-  @Post('instructors') addInstructor(@CurrentUser() u: AuthUser, @Body() dto: InstructorDto) {
+  @Can('settings.write') @Post('instructors') addInstructor(@CurrentUser() u: AuthUser, @Body() dto: InstructorDto) {
     return this.svc.addInstructor(u.tenantId, dto);
   }
 }

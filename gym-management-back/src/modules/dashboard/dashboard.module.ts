@@ -1,8 +1,8 @@
 import { Controller, Get, Injectable, Module } from '@nestjs/common';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
-import { CacheService } from '../../common/redis/redis.module';
+import { CacheService } from '../../common/cache/cache.module';
 import { brDate, dateOnly, hm, money, nowMinutes, today, weekdayMon0 } from '../../common/util';
 import { invoiceState } from '../../domain/invoices';
 import { AcademyQueries } from '../shared/academy.queries';
@@ -94,14 +94,6 @@ export class DashboardService {
       })
       .sort((a, b) => b.days - a.days);
 
-    // Aptos a graduar
-    const eligible = active.flatMap((s) =>
-      s.ranks.filter((r) => r.eligible && r.next).map((r) => ({
-        studentId: s.id, name: s.name, initials: s.initials, disciplineId: r.disciplineId, discipline: r.discipline.name,
-        from: r.belt, to: r.next!.belt, toLabel: r.next!.belt.label,
-      })),
-    );
-
     return {
       date: t.toISOString().slice(0, 10),
       activeStudents: active.length,
@@ -109,12 +101,11 @@ export class DashboardService {
       finance,
       todayClasses,
       late: { count: lateList.length, total: money(lateList.reduce((a, l) => a + l.amount, 0)), rows: lateList.slice(0, 6) },
-      eligible: { count: eligible.length, rows: eligible.slice(0, 6) },
     };
   }
 }
 
-@Roles('ADMIN')
+@Can('dashboard.read')
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly svc: DashboardService) {}

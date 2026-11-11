@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Injectable, Module, NotFoundException, Post, Query } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
-import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
 import { brDate, dateOnly, today } from '../../common/util';
@@ -21,20 +21,15 @@ export class GraduationService {
     private readonly q: AcademyQueries,
   ) {}
 
-  async overview(tenantId: string, disciplineId?: string, onlyEligible = false) {
+  async overview(tenantId: string, disciplineId?: string) {
     const [disc, rows] = await Promise.all([this.q.disciplines(tenantId), this.q.studentRows(tenantId)]);
     const active = rows.filter((r) => r.status === 'ACTIVE');
     const graded = [...disc.values()].filter((d) => d.levels.length);
-    const tabs = graded.map((d) => ({
-      ...this.q.disciplineTag(d),
-      eligible: active.filter((s) => s.ranks.some((r) => r.disciplineId === d.id && r.eligible)).length,
-    }));
+    const count = (id: string) => active.filter((s) => s.ranks.some((r) => r.disciplineId === id)).length;
+    const tabs = graded.map((d) => ({ ...this.q.disciplineTag(d), students: count(d.id) }));
     const byStudents = [...graded].sort((a, b) => count(b.id) - count(a.id));
-    function count(id: string) {
-      return active.filter((s) => s.ranks.some((r) => r.disciplineId === id)).length;
-    }
     const d = disc.get(disciplineId ?? '') ?? byStudents[0];
-    if (!d) return { tabs, discipline: null, levels: [], rows: [], eligibleTotal: 0 };
+    if (!d) return { tabs, discipline: null, levels: [], rows: [] };
 
     const rules = toRules(d);
     const inDisc = active
@@ -44,53 +39,37 @@ export class GraduationService {
       n: i + 1,
       ...beltVisual(rules, l.order, 0),
       order: l.order,
-      requirement:
-        l.minMonths == null ? 'Graduação máxima' : `${l.minMonths} meses · ${l.minClasses} aulas`,
       count: inDisc.filter((x) => x.r.levelOrder === l.order).length,
     }));
     const list = inDisc
-      .filter((x) => !onlyEligible || x.r.eligible)
-      .sort((a, b) => Number(b.r.eligible) - Number(a.r.eligible) || (b.r.pct ?? 0) - (a.r.pct ?? 0))
+      // graduação mais alta primeiro; dentro dela, há mais tempo sem graduar
+      .sort((a, b) => b.r.levelOrder - a.r.levelOrder || b.r.degree - a.r.degree || (a.r.lastPromotionAt ?? '').localeCompare(b.r.lastPromotionAt ?? ''))
       .map(({ s, r }) => ({
         studentId: s.id,
         name: s.name,
         initials: s.initials,
         belt: r.belt,
-        next: r.next,
+        next: r.next?.belt ?? null,
         time: r.timeInRank,
-        classes: r.requirement ? `${r.classesSince}/${r.requirement.classes}` : String(r.classesSince),
-        status: r.status,
-        pct: r.pct,
-        eligible: r.eligible,
         canPromote: !!r.next,
       }));
-    const note =
-      rules.degreesPerLevel > 0
-        ? `Graus: ${rules.degreeMinMonths} meses e ${rules.degreeMinClasses} aulas entre cada um. Faixa nova após ${rules.degreesPerLevel} graus.`
-        : 'Tempo e aulas mínimos contados desde a última graduação.';
     return {
       tabs,
-      discipline: { ...this.q.disciplineTag(d), system: d.system, instructor: d.instructor?.name ?? null, note },
+      discipline: { ...this.q.disciplineTag(d), system: d.system, instructor: d.instructor?.name ?? null },
       levels,
       rows: list,
-      eligibleTotal: tabs.reduce((a, t) => a + t.eligible, 0),
     };
   }
 
-  /** Preview do modal "Registrar graduação". */
+  /** Preview do modal "Registrar graduação": de → para, professor e data. */
   async preview(tenantId: string, studentId: string, disciplineId: string) {
     const { d, rank, rules } = await this.load(tenantId, studentId, disciplineId);
     const nx = nextRank(rules, rank);
-    const rv = this.q.rankView(d, rank);
     return {
       from: beltVisual(rules, rank.levelOrder, rank.degree),
       to: nx ? beltVisual(rules, nx.levelOrder, nx.degree) : null,
       instructor: d.instructor?.name ?? null,
       date: brDate(today()),
-      eligible: rv.eligible,
-      info: rv.eligible
-        ? `Cumpre os requisitos: ${rv.requirement?.kind === 'level' && rules.degreesPerLevel > 0 ? rv.since + ' na faixa' : rv.timeInRank + ' desde a última graduação'} e ${rank.classesSince} aulas.`
-        : `Ainda não cumpre os requisitos (${rv.status.toLowerCase()}). A graduação pode ser registrada mesmo assim.`,
     };
   }
 
@@ -124,14 +103,14 @@ export class GraduationService {
   }
 }
 
-@Roles('ADMIN')
+@Can('graduation.read')
 @Controller('graduation')
 export class GraduationController {
   constructor(private readonly svc: GraduationService) {}
 
   @Get()
-  overview(@CurrentUser() u: AuthUser, @Query('disciplineId') disciplineId?: string, @Query('onlyEligible') onlyEligible?: string) {
-    return this.svc.overview(u.tenantId, disciplineId, onlyEligible === 'true');
+  overview(@CurrentUser() u: AuthUser, @Query('disciplineId') disciplineId?: string) {
+    return this.svc.overview(u.tenantId, disciplineId);
   }
 
   @Get('preview')
@@ -139,7 +118,7 @@ export class GraduationController {
     return this.svc.preview(u.tenantId, studentId, disciplineId);
   }
 
-  @Post('promote')
+  @Can('graduation.write') @Post('promote')
   promote(@CurrentUser() u: AuthUser, @Body() dto: PromoteDto) {
     return this.svc.promote(u.tenantId, dto);
   }

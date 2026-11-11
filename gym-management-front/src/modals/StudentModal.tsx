@@ -34,6 +34,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
     guardianName: student?.guardian?.name ?? '',
     guardianRelation: student?.guardian?.relation ?? '',
     guardianPhone: student?.guardian?.phone ?? '',
+    consent: !!student?.consentAt,
   });
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const existing = new Set(student?.ranks.map((r) => r.discipline.id) ?? []);
@@ -53,6 +54,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       monthlyFee, dueDay: Number(f.dueDay), planId: f.planId || undefined, medicalNotes: f.medicalNotes || undefined,
       guardianName: f.guardianName || undefined, guardianRelation: f.guardianRelation || undefined, guardianPhone: f.guardianPhone || undefined,
       classGroupIds: classIds,
+      consent: f.consent,
     };
     const newRanks = Object.entries(ranks).map(([disciplineId, levelOrder]) => ({ disciplineId, levelOrder }));
     if (editing) {
@@ -60,6 +62,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       if (r) onClose();
     } else {
       if (!f.birthDate) return m.setErr('Informe a data de nascimento.');
+      if (!f.consent) return m.setErr('Confirme o consentimento do aluno (ou responsável) para o uso dos dados.');
       const r = await m.run(() => post<{ id: string }>('/students', { ...body, ranks: newRanks }), `${f.name} cadastrado`);
       if (r) {
         onClose();
@@ -81,7 +84,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
         </div>
       </div>
       <div className="grid2" style={{ gap: 12 }}>
-        <Field label="E-mail" hint="O aluno usa este e-mail para criar o acesso."><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
+        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
         <Field label="Telefone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="(11) 90000-0000" /></Field>
       </div>
 
@@ -163,6 +166,13 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       <Field label="Observações médicas">
         <textarea className="input" style={{ height: 64, padding: '8px 12px', resize: 'vertical' }} value={f.medicalNotes} onChange={(e) => set({ medicalNotes: e.target.value })} placeholder="Lesões, alergias, restrições…" />
       </Field>
+      <div className="row gap10" style={{ fontSize: 13, cursor: 'pointer', alignItems: 'flex-start' }} onClick={() => set({ consent: !f.consent })}>
+        <div className={'toggle' + (f.consent ? ' on' : '')} style={{ flexShrink: 0, marginTop: 1 }}><div /></div>
+        <span style={{ lineHeight: 1.5 }}>
+          O aluno (ou responsável, se for menor) autorizou o uso destes dados pela academia, inclusive as observações de saúde.
+          <span style={{ color: 'var(--mute2)' }}> (LGPD)</span>
+        </span>
+      </div>
       {m.err && <Alert>{m.err}</Alert>}
     </Modal>
   );
