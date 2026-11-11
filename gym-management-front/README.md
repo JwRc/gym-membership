@@ -20,6 +20,10 @@ Para entrar localmente, use as contas criadas pelo seed da API (veja o README do
 | `VITE_API_URL` | `/api` | URL base da API no build |
 | `VITE_API_PROXY` | `http://localhost:3000` | destino do proxy do `npm run dev` |
 
+## Deploy
+
+O front roda no **Cloudflare Pages**. A Function em `functions/api/[[path]].ts` encaminha `/api/*` para a API no Cloud Run, que é configurada pela variável `API_ORIGIN` do projeto no Pages. Assim, front e API ficam na mesma origem. Os headers de segurança e de cache ficam em `public/_headers`. O passo a passo está em [`../deploy/README.md`](../deploy/README.md).
+
 ## Telas
 
 **Gestão (admin):**

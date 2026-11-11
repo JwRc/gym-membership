@@ -3,5 +3,4 @@ dist
 .env
 .env.local
 *.tsbuildinfo
-.firebaserc
-.firebase
+.wrangler
