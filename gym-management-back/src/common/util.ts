@@ -8,7 +8,8 @@ const TZ = process.env.APP_TIMEZONE || 'America/Sao_Paulo';
 export const DAY_MS = 86_400_000;
 
 export function todayISO(now = new Date()): string {
-  if (process.env.APP_TODAY) return process.env.APP_TODAY; // útil para demos/testes
+  // data fixa para demos/testes; ignorada em produção
+  if (process.env.APP_TODAY && process.env.NODE_ENV !== 'production') return process.env.APP_TODAY;
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 export function today(): Date {
