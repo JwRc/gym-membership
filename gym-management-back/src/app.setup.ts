@@ -4,7 +4,7 @@ import helmet from 'helmet';
 
 /** Configuração HTTP comum à API e aos testes e2e. */
 export function configureApp(app: NestExpressApplication) {
-  // atrás do proxy do Cloud Run / Firebase: req.ip vem do X-Forwarded-For (só para log; o limite de login é por e-mail)
+  // atrás do proxy do Cloud Run / Cloudflare: req.ip vem do X-Forwarded-For (só para log; o limite de login é por e-mail)
   app.set('trust proxy', 1);
   app.use(helmet());
   app.enableCors({ origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(','), credentials: true });

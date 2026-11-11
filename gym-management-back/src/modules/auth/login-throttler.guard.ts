@@ -3,7 +3,7 @@ import { ThrottlerException, ThrottlerGuard } from '@nestjs/throttler';
 
 /**
  * Limite de tentativas de login por conta (e-mail), venha de qualquer IP.
- * Atrás do Firebase Hosting/Cloud Run o IP do cliente não é confiável
+ * Atrás do Cloudflare/Cloud Run o IP do cliente não é confiável
  * (X-Forwarded-For pode ser forjado), então a chave é só o e-mail.
  * O custo é que alguém pode bloquear uma conta por 1 minuto errando a senha.
  */
