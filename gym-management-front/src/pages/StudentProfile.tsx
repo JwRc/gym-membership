@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { get } from '../api/client';
+import { errMsg, get } from '../api/client';
 import type { StudentDetail } from '../api/types';
 import { Avatar, ErrorBox, FinancePill, InvoicePill, Loading, StatusPill } from '../components/ui';
 import { RankCard, ClassesCard } from '../components/StudentBlocks';
 import { GraduationModal } from '../modals/basic';
 import { StudentModal } from '../modals/StudentModal';
-import { br, brl } from '../lib/format';
+import { AnonymizeModal } from '../modals/AnonymizeModal';
+import { useApp } from '../auth/AppContext';
+import { br, brl, fileSlug, saveBlob } from '../lib/format';
 import { soft } from '../lib/theme';
 
 export function personalData(s: StudentDetail) {
@@ -17,7 +19,7 @@ export function personalData(s: StudentDetail) {
     ['Telefone', s.phone ?? '—'],
     ['Aluno desde', `${br(s.startDate)} · ${s.since}`],
     ['Vencimento', `Todo dia ${String(s.dueDay).padStart(2, '0')}`],
-    ['Acesso do aluno', s.hasAccess ? 'Conta criada' : 'Ainda não criou a conta'],
+    ['Consentimento (LGPD)', s.consentAt ? `Autorizado em ${br(s.consentAt.slice(0, 10))}` : 'Não registrado'],
   ];
 }
 export const planLine = (s: StudentDetail) => `${s.plan?.name ?? 'Sem plano'} · ${brl(s.monthlyFee)}/mês · vence dia ${String(s.dueDay).padStart(2, '0')}`;
@@ -26,7 +28,8 @@ export function StudentProfilePage() {
   const { id } = useParams();
   const nav = useNavigate();
   const q = useQuery({ queryKey: ['student', id], queryFn: () => get<StudentDetail>(`/students/${id}`) });
-  const [modal, setModal] = useState<null | 'edit' | { grad: string }>(null);
+  const { can, toast } = useApp();
+  const [modal, setModal] = useState<null | 'edit' | 'anonymize' | { grad: string }>(null);
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const s = q.data!;
@@ -50,6 +53,11 @@ export function StudentProfilePage() {
         </div>
         <button className="btn" onClick={() => nav(`/alunos/${s.id}/financeiro`)}>Financeiro</button>
         <button className="btn" onClick={() => setModal('edit')}>Editar</button>
+        {can('students.export') && (
+          <button className="btn" onClick={() => get<unknown>(`/students/${s.id}/export`)
+            .then((d) => saveBlob(new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }), `dados-${fileSlug(s.name)}.json`))
+            .catch((e) => toast(errMsg(e), true))}>Exportar dados</button>
+        )}
         {firstGrad && <button className="btn btn-primary" onClick={() => setModal({ grad: firstGrad.discipline.id })}>Registrar graduação</button>}
       </div>
 
@@ -100,7 +108,13 @@ export function StudentProfilePage() {
         </div>
       </div>
 
+      {can('students.delete') && (
+        <div style={{ fontSize: 12.5, color: 'var(--mute2)' }}>
+          LGPD: <span className="link" style={{ color: 'var(--bad)', cursor: 'pointer' }} onClick={() => setModal('anonymize')}>remover os dados pessoais deste aluno</span>, a pedido do titular.
+        </div>
+      )}
       {modal === 'edit' && <StudentModal student={s} onClose={() => setModal(null)} />}
+      {modal === 'anonymize' && <AnonymizeModal student={s} onClose={() => setModal(null)} />}
       {modal && typeof modal === 'object' && <GraduationModal disciplineId={modal.grad} studentId={s.id} onClose={() => setModal(null)} />}
     </div>
   );

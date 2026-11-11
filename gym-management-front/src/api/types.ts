@@ -49,6 +49,8 @@ export interface StudentDetail {
   email: string; phone: string | null; birthDate: string; age: number; startDate: string; since: string;
   monthlyFee: number; dueDay: number; plan: { id: string; name: string } | null; hasAccess: boolean;
   medicalNotes: string | null; guardian: { name: string; relation: string | null; phone: string | null } | null;
+  /** LGPD: quando o aluno/responsável autorizou o uso dos dados */
+  consentAt: string | null;
   ranks: (RankView & { history: NonNullable<RankView['history']> })[];
   classes: { id: string; name: string; color: string; instructor: string | null; days: string; time: string }[];
   invoices: StudentInvoices;
