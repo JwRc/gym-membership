@@ -25,6 +25,15 @@ Contas de demonstração (criadas pelo seed, **só para desenvolvimento local**;
 
 O seed é idempotente: apaga e recria só as duas academias de demonstração.
 
+## Operação (sem cadastro aberto na V1)
+
+```bash
+# cria a academia + administrador (senha de OPS_PASSWORD ou gerada e mostrada uma vez)
+npm run ops:create-academy -- --academy "Academia X" --name "Fulano" --email fulano@x.com --disciplines bjj,mt
+# redefine a senha e encerra as sessões abertas
+npm run ops:reset-password -- --email fulano@x.com
+```
+
 ## Scripts
 
 | Script | O que faz |
@@ -57,7 +66,9 @@ src/
 ```
 
 - **Multi-tenant:** todo registro tem `tenantId`; o JWT carrega o `tenantId` e todos os serviços filtram por ele.
-- **Perfis:** `ADMIN` (gestão) e `STUDENT` (só `/me`). Guard global com `@Public()` e `@Roles()`.
+- **Permissões (base do RBAC):** cada rota declara o que exige com `@Can('students.write')` (na classe e/ou na rota). Os perfis são listas de permissões em `src/common/auth/permissions.ts`; na V1 só existe o `ADMIN`, com todas. Rotas sem `@Public()`, `@Authenticated()` ou `@Can()` são **negadas** pelo guard global.
+- **Sessão:** JWT (padrão 12h) com `ver` = `User.tokenVersion`; o guard confere a versão no banco, então trocar a senha derruba as outras sessões. Login limitado a 5 tentativas por minuto por IP + e-mail.
+- **Auditoria:** toda escrita bem-sucedida de usuário logado gera uma linha em `AuditLog` (método + rota, parâmetros da URL, usuário). Login e ações de operação também são registrados. O corpo da requisição não é gravado.
 - **Cache (Redis):** leituras pesadas (lista de alunos, painel) usam `CacheService.getOrSet`. Cada academia tem um contador de versão; qualquer escrita bem-sucedida (interceptor global) incrementa o contador e invalida o cache daquela academia.
 - **Jobs (BullMQ):**
   - `billing` › `generate-invoices` — diário às 02:00; garante as mensalidades do mês e, a partir do dia 25, cria as do mês seguinte (Configurações › "Gerar mensalidades automaticamente"). Idempotente (`@@unique([studentId, year, month])`).
@@ -80,7 +91,7 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 
 | | |
 | --- | --- |
-| `POST /auth/login` · `GET /auth/me` | autenticação |
+| `POST /auth/login` · `GET /auth/me` · `POST /auth/change-password` | autenticação |
 | `GET /dashboard` | painel |
 | `GET/POST /students` · `GET/PATCH /students/:id` | alunos (filtros `q`, `disciplineId`, `status`, `finance`) |
 | `GET/POST /students/:id/invoices` · `POST /invoices/:id/pay` | mensalidades |
@@ -95,7 +106,7 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 ## Pendências conhecidas
 
 - **Área do aluno (V3):** o `PortalModule` existe em `src/modules/portal/`, mas não está registrado. O Pix dele é fictício.
-- **Recuperação de senha:** não implementada (a tela orienta a falar com a recepção).
+- **Recuperação de senha por e-mail:** não implementada. Na V1 o suporte redefine com `npm run ops:reset-password`.
 - **Notificações:** o processor só registra no log.
 - Ainda não há testes e2e da API; os testes cobrem as regras de domínio.
 - `APP_TODAY=YYYY-MM-DD` fixa a data de "hoje" (útil para demonstrações; ignorado em produção).

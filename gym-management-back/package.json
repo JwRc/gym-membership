@@ -14,7 +14,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "ops:create-academy": "tsx prisma/scripts/create-academy.ts",
+    "ops:reset-password": "tsx prisma/scripts/reset-password.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
