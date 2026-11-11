@@ -2,7 +2,7 @@
 
 API de gestão de academias de artes marciais — multi-academia (cada academia tem seus dados isolados), com alunos, turmas, graduação, mensalidades, financeiro e loja.
 
-**Stack:** Node.js 22 · NestJS 11 · Prisma 6 · PostgreSQL 17. Deploy da V1 (Cloud Run + Cloudflare Pages + Postgres gerenciado): veja [`../deploy/README.md`](../deploy/README.md).
+**Stack:** Node.js 22 · NestJS 11 · Prisma 6 · PostgreSQL 17. Deploy da V1 (Cloud Run + Cloudflare Workers + Postgres gerenciado): veja [`../deploy/README.md`](../deploy/README.md).
 
 ## Rodando localmente
 

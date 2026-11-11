@@ -1,0 +1,18 @@
+// Worker da Cloudflare: serve o build do Vite e encaminha /api/* para o Cloud Run (worker/index.ts).
+// Build: npm run build · Deploy: npx wrangler deploy
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // precisa ser igual ao nome do Worker no painel da Cloudflare
+  "name": "gym-membership",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // API_ORIGIN fica no painel; sem isto o deploy apagaria as variáveis de lá
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

@@ -22,7 +22,7 @@ Para entrar localmente, use as contas criadas pelo seed da API (veja o README do
 
 ## Deploy
 
-O front roda no **Cloudflare Pages**. A Function em `functions/api/[[path]].ts` encaminha `/api/*` para a API no Cloud Run, que é configurada pela variável `API_ORIGIN` do projeto no Pages. Assim, front e API ficam na mesma origem. Os headers de segurança e de cache ficam em `public/_headers`. O passo a passo está em [`../deploy/README.md`](../deploy/README.md).
+O front roda num **Worker da Cloudflare**. O `wrangler.jsonc` serve o `dist/` com fallback de SPA e manda `/api/*` para `worker/index.ts`, que encaminha à API no Cloud Run, configurada pela variável `API_ORIGIN` do Worker. Assim, front e API ficam na mesma origem. Os headers de segurança e de cache ficam em `public/_headers`. O passo a passo está em [`../deploy/README.md`](../deploy/README.md).
 
 ## Telas
 

@@ -1,15 +1,15 @@
-# Deploy da V1 (Google Cloud Run + Cloudflare Pages + Postgres gerenciado)
+# Deploy da V1 (Google Cloud Run + Cloudflare Workers + Postgres gerenciado)
 
 ```
-navegador ──► Cloudflare Pages (front estático)
-                 └─ /api/* (Pages Function) ──► Cloud Run "gym-api" (NestJS, 1 instância) ──► Postgres (Neon/Supabase)
+navegador ──► Cloudflare Worker (front estático)
+                 └─ /api/* (worker/index.ts) ──► Cloud Run "gym-api" (NestJS, 1 instância) ──► Postgres (Neon/Supabase)
 Cloud Scheduler ─┬─ 03:00 ──► POST /api/internal/billing/daily (X-Cron-Secret)
                  └─ 04:00 ──► Cloud Run Job "gym-backup" (pg_dump → Cloud Storage)
 ```
 
 - **Sem Redis/filas na V1:** o cache é em memória e a rotina diária é um endpoint chamado pelo Cloud Scheduler. Por isso a API roda com `--max-instances=1`.
-- **Mesma origem:** uma Pages Function (`gym-management-front/functions/api/[[path]].ts`) encaminha `/api/*` para o Cloud Run, então não precisa de CORS em produção e a URL do Cloud Run não vai para o bundle.
-- **Custo:** com uma academia, tudo deve caber nos níveis gratuitos (Cloud Run, Cloud Scheduler até 3 jobs, Secret Manager, Cloudflare Pages com até 100 mil chamadas/dia à Function, Neon ou Supabase free). O projeto GCP precisa de faturamento ativo para usar Cloud Run. **Confira os preços da região** `southamerica-east1`; se preferir, use `us-central1`.
+- **Mesma origem:** o Worker da Cloudflare (`gym-management-front/worker/index.ts`) serve o front e encaminha `/api/*` para o Cloud Run, então não precisa de CORS em produção e a URL do Cloud Run não vai para o bundle.
+- **Custo:** com uma academia, tudo deve caber nos níveis gratuitos (Cloud Run, Cloud Scheduler até 3 jobs, Secret Manager, Cloudflare Workers com até 100 mil chamadas/dia à API, Neon ou Supabase free). O projeto GCP precisa de faturamento ativo para usar Cloud Run. **Confira os preços da região** `southamerica-east1`; se preferir, use `us-central1`.
 
 ## 0. Pré-requisitos
 
@@ -54,7 +54,7 @@ gcloud builds submit gym-management-back --tag $IMG/api
 gcloud run deploy gym-api --image $IMG/api --region $REGION \
   --allow-unauthenticated --max-instances=1 --min-instances=0 --memory=512Mi --cpu=1 \
   --set-secrets=DATABASE_URL=database-url:latest,DIRECT_URL=direct-url:latest,JWT_SECRET=jwt-secret:latest,CRON_SECRET=cron-secret:latest \
-  --set-env-vars=APP_TIMEZONE=America/Sao_Paulo,JWT_EXPIRES_IN=12h,CORS_ORIGIN=https://SEU-PROJETO.pages.dev
+  --set-env-vars=APP_TIMEZONE=America/Sao_Paulo,JWT_EXPIRES_IN=12h,CORS_ORIGIN=https://gym-membership.SUA-CONTA.workers.dev
 
 export API_URL=$(gcloud run services describe gym-api --region $REGION --format='value(status.url)')
 curl $API_URL/api/health      # {"status":"ok","db":"up"}
@@ -74,24 +74,27 @@ DATABASE_URL='<direct-url>' DIRECT_URL='<direct-url>' \
 
 A senha é gerada e mostrada uma única vez (ou defina `OPS_PASSWORD`). Peça para a pessoa trocar no primeiro acesso (ícone de cadeado no menu). Para redefinir depois: `npm run ops:reset-password -- --email ...`.
 
-## 4. Front (Cloudflare Pages)
+## 4. Front (Cloudflare Workers)
 
-Tudo pelo painel da Cloudflare: **Workers & Pages › Criar › Pages › Conectar ao Git**, escolha o repositório e configure:
+O front é um Worker com arquivos estáticos: `gym-management-front/wrangler.jsonc` serve o `dist/` (com fallback de SPA) e manda só `/api/*` para `worker/index.ts`, que encaminha ao Cloud Run.
+
+Tudo pelo painel da Cloudflare: **Workers & Pages › Criar › Workers › Importar um repositório**, escolha o repositório e configure:
 
 | Campo | Valor |
 |---|---|
+| Nome do projeto | `gym-membership` (igual ao `name` do `wrangler.jsonc`) |
 | Branch de produção | `main` |
-| Predefinição de framework | Nenhuma (ou Vite) |
+| Diretório raiz (caminho) | `gym-management-front` |
 | Comando de build | `npm run build` |
-| Diretório de saída do build | `dist` |
-| Diretório raiz (avançado) | `gym-management-front` |
-| Variável de ambiente | `API_ORIGIN` = URL do Cloud Run (`$API_URL`, sem barra no final) |
+| Comando de implantação | `npx wrangler deploy` |
 
-- A pasta `functions/` dentro do diretório raiz vira a Function que encaminha `/api/*`. A versão do Node vem do `.nvmrc` (22).
-- Cada push na branch de produção publica de novo; outras branches e PRs ganham uma URL de prévia.
-- Confira: `https://SEU-PROJETO.pages.dev` abre o login e `https://SEU-PROJETO.pages.dev/api/health` responde `{"status":"ok","db":"up"}`.
-- Domínio próprio: projeto no Pages › **Domínios personalizados**. Depois atualize `CORS_ORIGIN` no Cloud Run.
-- Mudou a URL do Cloud Run? Atualize `API_ORIGIN` e faça **Tentar implantar novamente** na última implantação.
+Depois do primeiro deploy, no Worker › **Configurações › Variáveis e segredos**, adicione a variável de texto `API_ORIGIN` = URL do Cloud Run (`$API_URL`, sem barra no final) e implante de novo. O `keep_vars` do `wrangler.jsonc` evita que os próximos deploys apaguem essa variável.
+
+- A versão do Node vem do `.nvmrc` (22) e a do `wrangler` do `package.json`.
+- Cada push na branch de produção publica de novo.
+- Confira: `https://gym-membership.SUA-CONTA.workers.dev` abre o login e `.../api/health` responde `{"status":"ok","db":"up"}`. Se vier `API_ORIGIN não configurada`, falta a variável.
+- Domínio próprio: Worker › **Configurações › Domínios e rotas**. Depois atualize `CORS_ORIGIN` no Cloud Run.
+- Testar localmente: `npm run build && npx wrangler dev --var API_ORIGIN:http://localhost:3000`.
 
 ## 5. Rotina diária de cobrança (Cloud Scheduler)
 
@@ -152,5 +155,5 @@ pg_restore --no-owner --no-privileges --clean --if-exists --dbname='<direct-url>
 
 ```bash
 gcloud builds submit gym-management-back --tag $IMG/api && gcloud run deploy gym-api --image $IMG/api --region $REGION
-# front: push na branch de produção (o Cloudflare Pages faz o build e publica)
+# front: push na branch de produção (o Cloudflare faz o build e publica)
 ```
