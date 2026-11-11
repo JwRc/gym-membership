@@ -17,7 +17,6 @@ import { StoreModule } from './modules/store/store.module';
 import { DisciplinesModule } from './modules/disciplines/disciplines.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { PortalModule } from './modules/portal/portal.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { HealthController } from './health.controller';
 
@@ -51,7 +50,6 @@ import { HealthController } from './health.controller';
     DisciplinesModule,
     TenantModule,
     DashboardModule,
-    PortalModule,
     JobsModule,
   ],
   controllers: [HealthController],

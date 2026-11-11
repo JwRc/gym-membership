@@ -15,7 +15,7 @@ npm run db:seed               # dados de demonstração (datas relativas a hoje)
 npm run start:dev             # http://localhost:3000/api
 ```
 
-Contas de demonstração (criadas pelo seed):
+Contas de demonstração (criadas pelo seed, **só para desenvolvimento local**; o seed se recusa a rodar com `NODE_ENV=production`):
 
 | Perfil | E-mail | Senha |
 | --- | --- | --- |
@@ -71,7 +71,7 @@ src/
 Em `src/domain/graduation.ts` (com testes):
 - Modalidades com graus (Jiu-jitsu: 4 graus por faixa, 4 meses e 40 aulas entre graus). Depois do 4º grau, a próxima faixa exige o tempo mínimo da faixa atual (contado desde a data da faixa) e as aulas desde a última graduação. Na faixa preta os graus seguem até o 6º.
 - Demais modalidades: cada nível tem tempo e aulas mínimos desde a última graduação; o último nível é o topo.
-- As aulas contam via `POST /api/classes/:id/attendance`.
+- Na V1 a presença está desligada: a graduação é registrada manualmente.
 
 ### Modalidades: catálogo × academia
 
@@ -81,23 +81,22 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 
 | | |
 | --- | --- |
-| `POST /auth/login` · `POST /auth/register/academy` · `POST /auth/register/student` · `GET /auth/me` · `GET /auth/catalog` · `GET /auth/tenants/:code` | autenticação |
+| `POST /auth/login` · `GET /auth/me` | autenticação |
 | `GET /dashboard` | painel |
 | `GET/POST /students` · `GET/PATCH /students/:id` | alunos (filtros `q`, `disciplineId`, `status`, `finance`) |
 | `GET/POST /students/:id/invoices` · `POST /invoices/:id/pay` | mensalidades |
 | `GET /graduation` · `GET /graduation/preview` · `POST /graduation/promote` | graduação |
-| `GET/POST /classes` · `PATCH/DELETE /classes/:id` · `POST /classes/:id/slots` · `PATCH/DELETE /classes/slots/:slotId` · `GET /classes/conflicts` · `POST/DELETE /classes/:id/students` · `POST /classes/:id/attendance` | turmas |
+| `GET/POST /classes` · `PATCH/DELETE /classes/:id` · `POST /classes/:id/slots` · `PATCH/DELETE /classes/slots/:slotId` · `GET /classes/conflicts` · `POST/DELETE /classes/:id/students` | turmas |
 | `GET /finance?year&month&type&category` · `POST/PATCH/DELETE /finance/transactions` | financeiro |
 | `GET /store` · `POST/PATCH /store/products` · `POST /store/sales` | loja |
 | `GET /disciplines` · `POST /disciplines` · `POST /disciplines/from-catalog/:id` · `PATCH/DELETE /disciplines/:id` · `POST /disciplines/:id/restore` | modalidades |
 | `GET/PATCH /tenant` · `GET /tenant/onboarding` · `POST/DELETE /tenant/plans` · `POST /tenant/instructors` | configurações |
-| `GET /me` · `GET /me/invoices` · `POST /me/invoices/:id/pix` | área do aluno |
 | `GET /health` | saúde (DB + Redis) |
 
 ## Pendências conhecidas
 
-- **Pix:** `POST /me/invoices/:id/pix` devolve um "copia e cola" fictício; falta integrar um PSP e o webhook de confirmação.
+- **Área do aluno (V3):** o `PortalModule` existe em `src/modules/portal/`, mas não está registrado. O Pix dele é fictício.
 - **Recuperação de senha:** não implementada (a tela orienta a falar com a recepção).
 - **Notificações:** o processor só registra no log.
 - Ainda não há testes e2e da API; os testes cobrem as regras de domínio.
-- `APP_TODAY=YYYY-MM-DD` fixa a data de "hoje" (útil para demonstrações).
+- `APP_TODAY=YYYY-MM-DD` fixa a data de "hoje" (útil para demonstrações; ignorado em produção).

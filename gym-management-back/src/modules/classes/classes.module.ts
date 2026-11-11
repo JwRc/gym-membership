@@ -2,11 +2,11 @@ import {
   BadRequestException, Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post, Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
 import { CurrentUser, Roles } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
-import { dateOnly, initials, today } from '../../common/util';
+import { initials } from '../../common/util';
 import { findConflicts, slotSummary } from '../../domain/schedule';
 
 const OPEN_MIN = 6 * 60;
@@ -31,10 +31,6 @@ class UpdateClassDto {
 }
 class EnrollDto {
   @IsString() studentId: string;
-}
-class AttendanceDto {
-  @IsOptional() @IsString() date?: string;
-  @IsArray() @ArrayMinSize(1) @IsString({ each: true }) studentIds: string[];
 }
 
 @Injectable()
@@ -151,22 +147,6 @@ export class ClassesService {
     return { ok: true };
   }
 
-  /** Presença: cada presença nova soma 1 aula para a graduação na modalidade da turma. */
-  async attendance(tenantId: string, id: string, dto: AttendanceDto) {
-    const g = await this.groupOr404(tenantId, id);
-    const date = dto.date ? dateOnly(dto.date) : today();
-    const valid = await this.prisma.student.findMany({ where: { tenantId, id: { in: dto.studentIds } }, select: { id: true } });
-    let added = 0;
-    for (const { id: studentId } of valid) {
-      const r = await this.prisma.attendance.createMany({ data: [{ studentId, classGroupId: id, date }], skipDuplicates: true });
-      if (r.count) {
-        added++;
-        await this.prisma.studentRank.updateMany({ where: { studentId, disciplineId: g.disciplineId }, data: { classesSince: { increment: 1 } } });
-      }
-    }
-    return { added };
-  }
-
   private checkSlot(s: SlotDto) {
     if (s.endMin <= s.startMin) throw new BadRequestException('O horário de término precisa ser depois do início.');
   }
@@ -222,9 +202,6 @@ export class ClassesController {
   }
   @Delete(':id/students/:studentId') unenroll(@CurrentUser() u: AuthUser, @Param('id') id: string, @Param('studentId') studentId: string) {
     return this.svc.unenroll(u.tenantId, id, studentId);
-  }
-  @Post(':id/attendance') attendance(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: AttendanceDto) {
-    return this.svc.attendance(u.tenantId, id, dto);
   }
 }
 

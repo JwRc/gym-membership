@@ -73,20 +73,18 @@ export class TenantService {
 
   /** "Primeiros passos" para academias recém-criadas. */
   async onboarding(tenantId: string) {
-    const [t, disc, instr, classes, students, studentUsers] = await Promise.all([
+    const [t, disc, instr, classes, students] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
       this.prisma.discipline.count({ where: { tenantId, archived: false } }),
       this.prisma.instructor.findMany({ where: { tenantId }, select: { name: true } }),
       this.prisma.classGroup.count({ where: { tenantId } }),
       this.prisma.student.count({ where: { tenantId } }),
-      this.prisma.user.count({ where: { tenantId, role: 'STUDENT' } }),
     ]);
     const steps = [
       { key: 'disciplines', title: 'Escolher as modalidades', sub: `${disc} configuradas · do catálogo padrão ou próprias`, done: disc > 0, action: 'disciplines', btn: 'Gerenciar' },
       { key: 'instructors', title: 'Cadastrar professores', sub: instr.map((i) => i.name).join(', ') || 'Nenhum professor ainda', done: instr.length > 0, action: 'settings', btn: 'Cadastrar' },
       { key: 'classes', title: 'Montar a grade de turmas', sub: 'Horários semanais por modalidade', done: classes > 0, action: 'classes', btn: 'Montar grade' },
       { key: 'students', title: 'Cadastrar alunos', sub: 'Dados, plano e dia de vencimento de cada um', done: students > 0, action: 'students', btn: 'Cadastrar' },
-      { key: 'access', title: 'Liberar o acesso dos alunos', sub: 'Eles criam a conta com o código da academia', done: studentUsers > 0, action: null, btn: null },
     ];
     return { code: t.code, name: t.name, steps, done: steps.filter((s) => s.done).length, total: steps.length, complete: students > 0 && classes > 0 };
   }
