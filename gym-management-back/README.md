@@ -78,6 +78,15 @@ src/
   - Sob demanda: `POST /api/jobs/invoices/generate`, `POST /api/jobs/invoices/mark-overdue`, `GET /api/jobs/:id`.
   - `DISABLE_SCHEDULER=true` desliga os agendamentos (útil com várias réplicas).
 
+### Importação de alunos
+
+Regras puras em `src/domain/student-import.ts` (com testes); leitura de arquivo e modelo em `src/modules/students/import/`.
+- O modelo `.xlsx` traz as colunas, listas suspensas (sexo, status, plano, vencimento, consentimento) e uma aba de instruções.
+- Aceita `.xlsx` e `.csv` (UTF-8 ou Windows-1252, separador `;` ou `,`). Datas em dd/mm/aaaa, ISO ou serial do Excel; valores como `R$ 1.234,56`.
+- `analyze` só valida e devolve os erros por linha/coluna. `POST /students/import` revalida e **só grava se não houver nenhum erro**.
+- Duplicado = mesmo e-mail **ou** mesmo nome (sem acento/caixa) + nascimento, contra o banco e dentro da planilha.
+- Só cadastro: não cria mensalidades, modalidades nem matrículas. Limite de 2.000 linhas e 5 MB.
+
 ### Regras de graduação
 
 **Na V1 a graduação é manual:** o professor decide e a recepção registra (`POST /graduation/promote`). A API não calcula aptidão, porque a presença não é registrada. As regras abaixo continuam em `src/domain/graduation.ts` (com testes), para quando a presença voltar:
@@ -95,6 +104,7 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 | `POST /auth/login` · `GET /auth/me` · `POST /auth/change-password` | autenticação |
 | `GET /dashboard` | painel |
 | `GET/POST /students` · `GET/PATCH /students/:id` · `GET /students/:id/export` · `POST /students/:id/anonymize` | alunos (filtros `q`, `disciplineId`, `status`, `finance`) |
+| `GET /students/import/template` · `POST /students/import/analyze` · `POST /students/import` | importação de alunos (multipart `file`, .xlsx/.csv) |
 | `GET/POST /students/:id/invoices` · `POST /invoices/:id/pay` | mensalidades |
 | `GET /graduation` · `GET /graduation/preview` · `POST /graduation/promote` | graduação |
 | `GET/POST /classes` · `PATCH/DELETE /classes/:id` · `POST /classes/:id/slots` · `PATCH/DELETE /classes/slots/:slotId` · `GET /classes/conflicts` · `POST/DELETE /classes/:id/students` | turmas |
