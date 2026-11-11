@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit/audit.module';
 import { AuthUser } from '../../common/auth/auth.types';
-import { CacheService } from '../../common/redis/redis.module';
+import { CacheService } from '../../common/cache/cache.module';
 import { brDate, dateOnly, diffDays, initials, iso, num, today, ymd } from '../../common/util';
 import { promotionTitle } from '../../domain/graduation';
 import { toRules } from '../../domain/rules-mapper';

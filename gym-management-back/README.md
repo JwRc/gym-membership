@@ -2,13 +2,13 @@
 
 API de gestão de academias de artes marciais — multi-academia (cada academia tem seus dados isolados), com alunos, turmas, graduação, mensalidades, financeiro e loja.
 
-**Stack:** Node.js 22 · NestJS 11 · Prisma 6 · PostgreSQL 17 · Redis 7 (cache) · BullMQ 5 (jobs)
+**Stack:** Node.js 22 · NestJS 11 · Prisma 6 · PostgreSQL 17. Deploy da V1 (Cloud Run + Firebase Hosting + Neon): veja [`../deploy/README.md`](../deploy/README.md).
 
 ## Rodando localmente
 
 ```bash
 cp .env.example .env
-docker compose up -d          # PostgreSQL (5432) + Redis (6379)
+docker compose up -d          # PostgreSQL (porta 5432; outra porta: POSTGRES_PORT=5433)
 npm install
 npm run prisma:migrate        # aplica as migrations
 npm run db:seed               # dados de demonstração (datas relativas a hoje)
@@ -49,7 +49,7 @@ npm run ops:reset-password -- --email fulano@x.com
 
 ```
 src/
-  common/            prisma, redis (cache por academia), auth guard/decorators, utilitários de data e dinheiro
+  common/            prisma, cache por academia, auth (guard, permissões), auditoria, utilitários de data e dinheiro
   domain/            regras puras e testadas: graduação, mensalidades, grade horária, catálogo
   modules/
     auth/            login, cadastro de academia, cadastro de aluno por código
@@ -62,21 +62,19 @@ src/
     tenant/          configurações, planos, professores, onboarding
     dashboard/       painel inicial (aniversariantes, financeiro, turmas de hoje, atrasos, aptos)
     portal/          área do aluno (/me)
-    jobs/            filas BullMQ: cobrança e notificações
+    jobs/            cobrança: gerar mês e marcar atrasos (sob demanda e rotina diária)
 ```
 
 - **Multi-tenant:** todo registro tem `tenantId`; o JWT carrega o `tenantId` e todos os serviços filtram por ele.
 - **Permissões (base do RBAC):** cada rota declara o que exige com `@Can('students.write')` (na classe e/ou na rota). Os perfis são listas de permissões em `src/common/auth/permissions.ts`; na V1 só existe o `ADMIN`, com todas. Rotas sem `@Public()`, `@Authenticated()` ou `@Can()` são **negadas** pelo guard global.
-- **Sessão:** JWT (padrão 12h) com `ver` = `User.tokenVersion`; o guard confere a versão no banco, então trocar a senha derruba as outras sessões. Login limitado a 5 tentativas por minuto por IP + e-mail.
+- **Sessão:** JWT (padrão 12h) com `ver` = `User.tokenVersion`; o guard confere a versão no banco, então trocar a senha derruba as outras sessões. Login limitado a 5 tentativas por minuto por conta (e-mail), independente do IP.
 - **Auditoria:** toda escrita bem-sucedida de usuário logado gera uma linha em `AuditLog` (método + rota, parâmetros da URL, usuário). Login e ações de operação também são registrados. O corpo da requisição não é gravado.
 - **LGPD:** o cadastro exige o consentimento do aluno/responsável (`Student.consentAt`). `GET /students/:id/export` entrega todos os dados do aluno em JSON. `POST /students/:id/anonymize` apaga os dados pessoais a pedido do titular: mensalidades pagas e vendas ficam sem identificação, as em aberto são excluídas e o aluno some das listas (`anonymizedAt`). Exportação e anonimização ficam na auditoria.
-- **Cache (Redis):** leituras pesadas (lista de alunos, painel) usam `CacheService.getOrSet`. Cada academia tem um contador de versão; qualquer escrita bem-sucedida (interceptor global) incrementa o contador e invalida o cache daquela academia.
-- **Jobs (BullMQ):**
-  - `billing` › `generate-invoices` — diário às 02:00; garante as mensalidades do mês e, a partir do dia 25, cria as do mês seguinte (Configurações › "Gerar mensalidades automaticamente"). Idempotente (`@@unique([studentId, year, month])`).
-  - `billing` › `mark-overdue` — diário às 03:00; marca como atrasadas as vencidas além da tolerância e enfileira notificações.
-  - `notifications` — estoque baixo e mensalidade atrasada. Hoje só registra no log; é o ponto para plugar e-mail/WhatsApp.
-  - Sob demanda: `POST /api/jobs/invoices/generate`, `POST /api/jobs/invoices/mark-overdue`, `GET /api/jobs/:id`.
-  - `DISABLE_SCHEDULER=true` desliga os agendamentos (útil com várias réplicas).
+- **Cache (em memória):** leituras pesadas (lista de alunos, painel) usam `CacheService.getOrSet`. Cada academia tem um contador de versão; qualquer escrita bem-sucedida (interceptor global) invalida o cache daquela academia. Como é por processo, a V1 roda com uma única instância.
+- **Cobrança (sem filas na V1):**
+  - `POST /api/internal/billing/daily` — chamado pelo Cloud Scheduler às 03:00 com o header `X-Cron-Secret` (= `CRON_SECRET`; vazio desliga). Garante as mensalidades do mês (e, a partir do dia 25, as do mês seguinte) nas academias com "Gerar mensalidades automaticamente", e marca como atrasadas as vencidas além da tolerância. Idempotente (`@@unique([studentId, year, month])`).
+  - Sob demanda (admin): `POST /api/jobs/invoices/generate`, `POST /api/jobs/invoices/mark-overdue`.
+  - Notificações (estoque baixo, atraso) ficam para a V2; o estoque baixo só vai para o log.
 
 ### Importação de alunos
 
@@ -112,7 +110,7 @@ O catálogo padrão (`src/domain/catalog.ts`) é sincronizado no boot. Ao adicio
 | `GET /store` · `POST/PATCH /store/products` · `POST /store/sales` | loja |
 | `GET /disciplines` · `POST /disciplines` · `POST /disciplines/from-catalog/:id` · `PATCH/DELETE /disciplines/:id` · `POST /disciplines/:id/restore` | modalidades |
 | `GET/PATCH /tenant` · `GET /tenant/onboarding` · `POST/DELETE /tenant/plans` · `POST /tenant/instructors` | configurações |
-| `GET /health` | saúde (DB + Redis) |
+| `GET /health` | saúde (banco) |
 
 ## Pendências conhecidas
 

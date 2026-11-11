@@ -2,7 +2,7 @@ import { Controller, Get, Injectable, Module } from '@nestjs/common';
 import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
-import { CacheService } from '../../common/redis/redis.module';
+import { CacheService } from '../../common/cache/cache.module';
 import { brDate, dateOnly, hm, money, nowMinutes, today, weekdayMon0 } from '../../common/util';
 import { invoiceState } from '../../domain/invoices';
 import { AcademyQueries } from '../shared/academy.queries';
