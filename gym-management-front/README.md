@@ -24,7 +24,7 @@ Para entrar localmente, use as contas criadas pelo seed da API (veja o README do
 
 **Gestão (admin):**
 - Início: painel ou primeiros passos, para academias novas
-- Alunos: lista com filtros e Ctrl K para buscar, ficha do aluno e financeiro do aluno
+- Alunos: lista com filtros e Ctrl K para buscar, importação por planilha (.xlsx/.csv, com modelo para baixar), ficha do aluno (exportar/remover dados pela LGPD) e financeiro do aluno
 - Turmas: calendário semanal; arraste para mover um horário, clique no vazio para criar, com aviso de conflito
 - Graduação, Financeiro, Loja, Modalidades (catálogo × cópias da academia) e Configurações
 

@@ -53,3 +53,13 @@ export const get = <T,>(url: string, params?: Record<string, unknown>) => api.ge
 export const post = <T,>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data);
 export const patch = <T,>(url: string, body?: unknown) => api.patch<T>(url, body).then((r) => r.data);
 export const del = <T,>(url: string) => api.delete<T>(url).then((r) => r.data);
+
+/** Envia um arquivo (multipart, campo "file"). */
+export const upload = <T,>(url: string, file: File) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post<T>(url, fd).then((r) => r.data);
+};
+
+/** Baixa um arquivo autenticado como Blob. */
+export const getBlob = (url: string) => api.get<Blob>(url, { responseType: 'blob' }).then((r) => r.data);
