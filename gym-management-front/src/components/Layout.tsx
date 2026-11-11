@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../api/client';
 import { useApp } from '../auth/AppContext';
 import { Avatar, ICONS, Icon } from './ui';
+import { ChangePasswordModal } from '../modals/ChangePasswordModal';
 
 interface TenantLite {
   disciplines: { id: string; name: string; color: string; students: number }[];
@@ -15,6 +16,7 @@ interface DashLite {
 export function Layout() {
   const { me, theme, toggleTheme, logout } = useApp();
   const nav = useNavigate();
+  const [pwd, setPwd] = useState(false);
   const admin = me!.role === 'ADMIN';
   const tenant = useQuery({ queryKey: ['tenant'], queryFn: () => get<TenantLite>('/tenant'), enabled: admin });
   const dash = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashLite>('/dashboard'), enabled: admin });
@@ -102,6 +104,9 @@ export function Layout() {
           <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}>
             <Icon d={theme === 'dark' ? ICONS.sun : ICONS.moon} size={15} width={1.9} />
           </button>
+          <button className="icon-btn" onClick={() => setPwd(true)} title="Trocar senha">
+            <Icon d={ICONS.lock} size={15} width={1.9} />
+          </button>
           <button className="icon-btn" onClick={logout} title="Sair">
             <Icon d={ICONS.logout} size={15} width={1.9} />
           </button>
@@ -110,6 +115,7 @@ export function Layout() {
       <main className="main">
         <Outlet />
       </main>
+      {pwd && <ChangePasswordModal onClose={() => setPwd(false)} />}
     </div>
   );
 }

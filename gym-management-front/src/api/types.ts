@@ -7,6 +7,8 @@ export interface Me {
   name: string;
   email: string;
   role: Role;
+  /** permissões do perfil (base do RBAC; na V1 o admin tem todas) */
+  permissions: string[];
   studentId: string | null;
   tenant: { id: string; name: string; initials: string; code: string; disciplines: string[] };
 }

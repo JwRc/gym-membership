@@ -7,6 +7,8 @@ import { Theme, useTheme } from '../lib/theme';
 interface Ctx {
   me: Me | null;
   booting: boolean;
+  /** o usuário logado tem a permissão? (para esconder ações quando houver outros perfis) */
+  can: (permission: string) => boolean;
   setSession: (token: string, me: Me) => void;
   logout: () => void;
   theme: Theme;
@@ -50,6 +52,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       me,
       booting,
+      can: (p) => !!me?.permissions.includes(p),
       setSession: (token, m) => {
         tokenStore.set(token);
         qc.clear();
