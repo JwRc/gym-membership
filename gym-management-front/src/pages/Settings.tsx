@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { del, get, patch, post } from '../api/client';
-import { useApp } from '../auth/AppContext';
 import { Alert, ErrorBox, Field, ICONS, Icon, Loading, Modal } from '../components/ui';
 import { useMutate } from '../modals/useMutate';
 import { brl, parseMoney } from '../lib/format';
@@ -18,7 +17,6 @@ const ALL_DAYS = [1, 5, 10, 15, 20, 25, 30];
 
 export function SettingsPage() {
   const nav = useNavigate();
-  const { toast } = useApp();
   const q = useQuery({ queryKey: ['tenant'], queryFn: () => get<TenantT>('/tenant') });
   const m = useMutate();
   const [editing, setEditing] = useState(false);
@@ -47,7 +45,6 @@ export function SettingsPage() {
             {row('CNPJ', t.cnpj ?? '—')}
             {row('Telefone', t.phone ?? '—')}
             {row('Endereço', t.address ?? '—')}
-            {row('Código de acesso dos alunos', <span className="row gap8"><span className="mono" style={{ letterSpacing: '0.05em', color: 'var(--text)' }}>{t.code}</span><button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(t.code).catch(() => undefined); toast(`Código copiado: ${t.code}`); }}>Copiar</button></span>, 'Usado em Criar conta › Sou aluno')}
           </div>
           <div className="card">
             <div className="card-h"><div className="card-t">Cobrança</div></div>

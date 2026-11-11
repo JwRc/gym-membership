@@ -81,7 +81,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
         </div>
       </div>
       <div className="grid2" style={{ gap: 12 }}>
-        <Field label="E-mail" hint="O aluno usa este e-mail para criar o acesso."><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
+        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
         <Field label="Telefone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="(11) 90000-0000" /></Field>
       </div>
 

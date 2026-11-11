@@ -13,13 +13,12 @@ npm install
 npm run dev        # http://localhost:5173 (faz proxy de /api para http://localhost:3000)
 ```
 
-Em desenvolvimento, a tela de login mostra as contas de demonstração; clique numa delas para preencher.
+Para entrar localmente, use as contas criadas pelo seed da API (veja o README do `gym-management-back`).
 
 | Variável | Padrão | Uso |
 | --- | --- | --- |
 | `VITE_API_URL` | `/api` | URL base da API no build |
 | `VITE_API_PROXY` | `http://localhost:3000` | destino do proxy do `npm run dev` |
-| `VITE_SHOW_DEMOS` | — | `true` para mostrar as contas de demonstração fora do modo dev |
 
 ## Telas
 
@@ -29,7 +28,7 @@ Em desenvolvimento, a tela de login mostra as contas de demonstração; clique n
 - Turmas: calendário semanal; arraste para mover um horário, clique no vazio para criar, com aviso de conflito
 - Graduação, Financeiro, Loja, Modalidades (catálogo × cópias da academia) e Configurações
 
-**Área do aluno:** Início (próxima aula, graduação, turmas e dados) e Mensalidades (pagar com Pix, ainda fictício).
+**Área do aluno:** fora da V1. As telas ficam em `pages/portal/` (sem rota), para a V3.
 
 Modais: novo/editar aluno, registrar graduação, novo lançamento, lançar mensalidade, registrar pagamento, novo horário, produto, venda e editor de modalidade.
 
@@ -41,7 +40,7 @@ src/
   auth/         AppContext: sessão, tema, toast
   components/   UI base (botões, pills, faixa, avatar, modal), layout com sidebar e blocos reutilizados
   modals/       formulários em modal + useMutate (toast + invalidação das queries)
-  pages/        telas de gestão e portal/ (área do aluno)
+  pages/        telas de gestão; portal/ (área do aluno, desativada na V1)
   lib/          formatação (R$, datas pt-BR) e tema
   styles.css    tokens de cor do design (escuro/claro) e classes de componentes
 ```

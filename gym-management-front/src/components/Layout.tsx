@@ -32,21 +32,16 @@ export function Layout() {
     return () => window.removeEventListener('keydown', k);
   }, [admin, nav]);
 
-  const items = admin
-    ? [
-        ['/', 'Início', ICONS.inicio, 0],
-        ['/alunos', 'Alunos', ICONS.alunos, 0],
-        ['/turmas', 'Turmas', ICONS.turmas, 0],
-        ['/graduacao', 'Graduação', ICONS.grad, dash.data?.eligible.count ?? 0, 'gold'],
-        ['/financeiro', 'Financeiro', ICONS.fin, dash.data?.late.count ?? 0, 'bad'],
-        ['/loja', 'Loja', ICONS.loja, 0],
-        ['/modalidades', 'Modalidades', ICONS.mods, 0],
-        ['/configuracoes', 'Configurações', ICONS.config, 0],
-      ]
-    : [
-        ['/', 'Início', ICONS.inicio, 0],
-        ['/mensalidades', 'Mensalidades', ICONS.fin, 0],
-      ];
+  const items = [
+    ['/', 'Início', ICONS.inicio, 0],
+    ['/alunos', 'Alunos', ICONS.alunos, 0],
+    ['/turmas', 'Turmas', ICONS.turmas, 0],
+    ['/graduacao', 'Graduação', ICONS.grad, dash.data?.eligible.count ?? 0, 'gold'],
+    ['/financeiro', 'Financeiro', ICONS.fin, dash.data?.late.count ?? 0, 'bad'],
+    ['/loja', 'Loja', ICONS.loja, 0],
+    ['/modalidades', 'Modalidades', ICONS.mods, 0],
+    ['/configuracoes', 'Configurações', ICONS.config, 0],
+  ];
 
   const mods = tenant.data?.disciplines;
   return (
@@ -103,7 +98,7 @@ export function Layout() {
           <Avatar name={me!.name} />
           <div className="grow">
             <div className="ellipsis" style={{ fontSize: 13, fontWeight: 500 }}>{me!.name}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--mute2)' }}>{admin ? 'Administrador' : 'Aluno'}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--mute2)' }}>Administrador</div>
           </div>
           <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}>
             <Icon d={theme === 'dark' ? ICONS.sun : ICONS.moon} size={15} width={1.9} />
