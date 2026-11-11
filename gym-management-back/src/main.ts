@@ -7,7 +7,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  // atrás do proxy do Cloud Run / Firebase: usa o IP real do cliente (limite de login)
+  // atrás do proxy do Cloud Run / Firebase: req.ip vem do X-Forwarded-For (só para log; o limite de login é por e-mail)
   app.set('trust proxy', 1);
   app.use(helmet());
   app.enableCors({ origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(','), credentials: true });
