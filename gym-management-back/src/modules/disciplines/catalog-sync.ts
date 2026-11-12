@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { CATALOG, CatalogEntry } from '../../domain/catalog';
 
 export function catalogLevels(c: CatalogEntry) {
-  return c.levels.map(([name, color, minMonths, minClasses], order) => ({ order, name, color, minMonths, minClasses }));
+  return c.levels.map(([name, color, minMonths, minClasses, color2], order) => ({ order, name, color, color2: color2 ?? null, minMonths, minClasses }));
 }
 export function catalogRules(c: CatalogEntry) {
   return {

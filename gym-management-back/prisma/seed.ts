@@ -44,7 +44,7 @@ const rel = (k: number) => {
   return { y: Y0 + Math.floor(m0 / 12), m: (((m0 % 12) + 12) % 12) + 1 };
 };
 
-type Lv = [name: string, color: string, m: number | null, a: number | null];
+type Lv = [name: string, color: string, m: number | null, a: number | null, color2?: string];
 const cat = (id: string) => CATALOG.find((c) => c.id === id)!;
 
 async function wipe() {
@@ -63,7 +63,7 @@ async function upsertCatalog() {
     await prisma.catalogDiscipline.upsert({ where: { id: c.id }, update: data, create: { id: c.id, ...data } });
     await prisma.catalogLevel.deleteMany({ where: { disciplineId: c.id } });
     await prisma.catalogLevel.createMany({
-      data: c.levels.map(([name, color, minMonths, minClasses], order) => ({ disciplineId: c.id, order, name, color, minMonths, minClasses })),
+      data: c.levels.map(([name, color, minMonths, minClasses, color2], order) => ({ disciplineId: c.id, order, name, color, color2: color2 ?? null, minMonths, minClasses })),
     });
   }
 }
@@ -84,7 +84,7 @@ async function createDiscipline(
       degreesPerLevel: c?.degreesPerLevel ?? 0, lastLevelMaxDegrees: c?.lastLevelMaxDegrees ?? 0,
       degreeMinMonths: c?.degreeMinMonths ?? null, degreeMinClasses: c?.degreeMinClasses ?? null,
       customizedAt: copy ? (copy.at ?? addDays(T0, -60)) : null,
-      levels: { create: levels.map(([name, color, minMonths, minClasses], order) => ({ order, name, color, minMonths, minClasses })) },
+      levels: { create: levels.map(([name, color, minMonths, minClasses, color2], order) => ({ order, name, color, color2: color2 ?? null, minMonths, minClasses })) },
     },
     include: { levels: true },
   });

@@ -15,6 +15,8 @@ export interface LevelDef {
   order: number;
   name: string;
   color: string;
+  /** 2ª cor (faixa bicolor); null/ausente = uma cor. */
+  color2?: string | null;
   minMonths: number | null;
   minClasses: number | null;
 }
@@ -154,6 +156,7 @@ export function beltVisual(rules: DisciplineRules, levelOrder: number, degree: n
   const isLast = sorted(rules).at(-1)?.order === levelOrder;
   return {
     color: L?.color ?? '#888888',
+    color2: L?.color2 ?? null,
     bar: withDegrees ? (isLast ? '#C8252C' : '#121212') : (L?.color ?? '#888888'),
     hasBar: withDegrees,
     stripes: withDegrees ? degree : 0,

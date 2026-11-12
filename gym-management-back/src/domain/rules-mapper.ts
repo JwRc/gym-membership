@@ -12,6 +12,6 @@ export function toRules(d: DisciplineWithLevels): DisciplineRules {
     degreeMinClasses: d.degreeMinClasses,
     levels: [...d.levels]
       .sort((a, b) => a.order - b.order)
-      .map((l) => ({ order: l.order, name: l.name, color: l.color, minMonths: l.minMonths, minClasses: l.minClasses })),
+      .map((l) => ({ order: l.order, name: l.name, color: l.color, color2: l.color2, minMonths: l.minMonths, minClasses: l.minClasses })),
   };
 }

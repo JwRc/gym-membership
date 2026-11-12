@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DisciplineRules, nextRank, progress, rankLabel, requirementFor } from './graduation';
+import { beltVisual, DisciplineRules, nextRank, progress, rankLabel, requirementFor } from './graduation';
 
 const bjj: DisciplineRules = {
   system: 'Faixas e graus',
@@ -64,4 +64,19 @@ test('rótulo com graus', () => {
   assert.equal(rankLabel(bjj, 1, 0), 'Azul');
   assert.equal(rankLabel(bjj, 1, 1), 'Azul · 1 grau');
   assert.equal(rankLabel(bjj, 0, 3), 'Branca · 3 graus');
+});
+
+test('faixa bicolor: beltVisual devolve a 2ª cor; faixa simples devolve null', () => {
+  const mt: DisciplineRules = {
+    ...boxe,
+    system: 'Prajied',
+    levels: [
+      { order: 0, name: 'Branco', color: '#EDEDEA', minMonths: 4, minClasses: 30 },
+      { order: 1, name: 'Branco e amarelo', color: '#EDEDEA', color2: '#EAC02E', minMonths: null, minClasses: null },
+    ],
+  };
+  assert.equal(beltVisual(mt, 0, 0).color2, null);
+  const b = beltVisual(mt, 1, 0);
+  assert.equal(b.color, '#EDEDEA');
+  assert.equal(b.color2, '#EAC02E');
 });

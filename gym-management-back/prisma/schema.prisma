@@ -149,6 +149,7 @@ model CatalogLevel {
   order        Int
   name         String
   color        String
+  color2       String? // 2ª cor (faixas bicolores, ex.: kruang); null = uma cor
   minMonths    Int?
   minClasses   Int?
 
@@ -190,6 +191,7 @@ model DisciplineLevel {
   order        Int
   name         String
   color        String
+  color2       String? // 2ª cor (faixas bicolores, ex.: kruang); null = uma cor
   minMonths    Int?
   minClasses   Int?
 

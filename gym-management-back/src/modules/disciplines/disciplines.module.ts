@@ -3,7 +3,7 @@ import {
   OnModuleInit, Param, Patch, Post,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
@@ -12,9 +12,10 @@ import { brDate, num } from '../../common/util';
 import { CATALOG, DISCIPLINE_COLORS } from '../../domain/catalog';
 import { catalogLevels, catalogRules, syncCatalog } from './catalog-sync';
 
-class LevelDto {
+export class LevelDto {
   @IsString() @MinLength(1) name: string;
   @Matches(/^#[0-9a-fA-F]{6}$/) color: string;
+  @ValidateIf((l: LevelDto) => l.color2 != null) @Matches(/^#[0-9a-fA-F]{6}$/) color2?: string | null;
   @IsOptional() @IsInt() @Min(0) minMonths?: number | null;
   @IsOptional() @IsInt() @Min(0) minClasses?: number | null;
 }
@@ -26,6 +27,10 @@ class DisciplineDto {
   @IsNumber() @Min(0) monthlyPrice: number;
   @IsArray() @ValidateNested({ each: true }) @Type(() => LevelDto) levels: LevelDto[];
 }
+
+const toLevel = (l: LevelDto, order: number) => ({
+  order, name: l.name, color: l.color, color2: l.color2 || null, minMonths: l.minMonths ?? null, minClasses: l.minClasses ?? null,
+});
 
 /** Sincroniza o catálogo padrão no boot. */
 @Injectable()
@@ -72,7 +77,7 @@ export class DisciplinesService {
         customized: !!d.customizedAt,
         customizedAt: brDate(d.customizedAt),
         degreesPerLevel: d.degreesPerLevel,
-        levels: d.levels.map((l) => ({ order: l.order, name: l.name, color: l.color, minMonths: l.minMonths, minClasses: l.minClasses })),
+        levels: d.levels.map((l) => ({ order: l.order, name: l.name, color: l.color, color2: l.color2, minMonths: l.minMonths, minClasses: l.minClasses })),
         instructor: d.instructor,
         monthlyPrice: num(d.monthlyPrice),
         students: d._count.ranks,
@@ -107,7 +112,7 @@ export class DisciplinesService {
       data: {
         tenantId, name: dto.name.trim(), color: dto.color, system: dto.system || 'Sem graduação', monthlyPrice: dto.monthlyPrice,
         instructorId: dto.instructorId || null, customizedAt: new Date(),
-        levels: { create: dto.levels.map((l, order) => ({ order, name: l.name, color: l.color, minMonths: l.minMonths ?? null, minClasses: l.minClasses ?? null })) },
+        levels: { create: dto.levels.map(toLevel) },
       },
     });
     return { id: d.id };
@@ -125,7 +130,7 @@ export class DisciplinesService {
           customizedAt: this.differsFromCatalog(d.originId, dto) ? new Date() : null,
         },
       });
-      await this.replaceLevels(tx, id, dto.levels.map((l, order) => ({ order, name: l.name, color: l.color, minMonths: l.minMonths ?? null, minClasses: l.minClasses ?? null })));
+      await this.replaceLevels(tx, id, dto.levels.map(toLevel));
     });
     return { id };
   }
@@ -156,7 +161,7 @@ export class DisciplinesService {
     const lv = catalogLevels(c);
     return (
       dto.name.trim() !== c.name || dto.color.toLowerCase() !== c.color.toLowerCase() || dto.system !== c.system || dto.levels.length !== lv.length ||
-      dto.levels.some((l, i) => l.name !== lv[i].name || l.color.toLowerCase() !== lv[i].color.toLowerCase() || (l.minMonths ?? null) !== lv[i].minMonths || (l.minClasses ?? null) !== lv[i].minClasses)
+      dto.levels.some((l, i) => l.name !== lv[i].name || l.color.toLowerCase() !== lv[i].color.toLowerCase() || (l.color2 ?? '').toLowerCase() !== (lv[i].color2 ?? '').toLowerCase() || (l.minMonths ?? null) !== lv[i].minMonths || (l.minClasses ?? null) !== lv[i].minClasses)
     );
   }
 
@@ -165,7 +170,7 @@ export class DisciplinesService {
     if (used && levelCount > 0) throw new BadRequestException(`${used} aluno(s) estão em níveis que seriam removidos.`);
   }
 
-  private async replaceLevels(tx: Prisma.TransactionClient, id: string, levels: { order: number; name: string; color: string; minMonths: number | null; minClasses: number | null }[]) {
+  private async replaceLevels(tx: Prisma.TransactionClient, id: string, levels: { order: number; name: string; color: string; color2: string | null; minMonths: number | null; minClasses: number | null }[]) {
     await tx.disciplineLevel.deleteMany({ where: { disciplineId: id } });
     if (levels.length) await tx.disciplineLevel.createMany({ data: levels.map((l) => ({ ...l, disciplineId: id })) });
   }

@@ -1,5 +1,6 @@
 /** Catálogo padrão de modalidades — igual para todas as academias. */
-type L = [name: string, color: string, minMonths: number | null, minClasses: number | null];
+/** color2: segunda cor opcional (faixa bicolor). */
+type L = [name: string, color: string, minMonths: number | null, minClasses: number | null, color2?: string];
 
 export interface CatalogEntry {
   id: string;
