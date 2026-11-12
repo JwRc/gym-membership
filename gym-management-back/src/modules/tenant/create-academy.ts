@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { initials } from '../../common/util';
 import { CATALOG } from '../../domain/catalog';
+import { catalogLevels } from '../disciplines/catalog-sync';
 
 export interface CreateAcademyInput {
   academyName: string;
@@ -43,7 +44,7 @@ export async function createAcademy(prisma: PrismaClient, input: CreateAcademyIn
           degreeMinClasses: c.degreeMinClasses ?? null,
           monthlyPrice: c.defaultPrice,
           instructorId: instructor.id,
-          levels: { create: c.levels.map(([name, color, minMonths, minClasses], order) => ({ order, name, color, minMonths, minClasses })) },
+          levels: { create: catalogLevels(c) },
         },
       });
     }

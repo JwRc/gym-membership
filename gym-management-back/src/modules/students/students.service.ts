@@ -91,12 +91,16 @@ export class StudentsService {
             ...this.q.rankView(d, r, t),
             history: s.promotions
               .filter((p) => p.disciplineId === r.disciplineId)
-              .map((p) => ({
-                title: p.title,
-                date: brDate(p.date),
-                color: d.levels.find((l) => l.order === p.levelOrder)?.color ?? '#888',
-                instructor: p.instructorName,
-              })),
+              .map((p) => {
+                const lv = d.levels.find((l) => l.order === p.levelOrder);
+                return {
+                  title: p.title,
+                  date: brDate(p.date),
+                  color: lv?.color ?? '#888',
+                  color2: lv?.color2 ?? null,
+                  instructor: p.instructorName,
+                };
+              }),
           };
         }),
       classes: s.enrollments.map((e) => ({

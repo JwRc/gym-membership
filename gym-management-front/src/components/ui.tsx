@@ -1,6 +1,6 @@
 import { CSSProperties, ReactNode, useEffect } from 'react';
 import { useApp } from '../auth/AppContext';
-import { avatarColors } from '../lib/theme';
+import { avatarColors, beltBg } from '../lib/theme';
 import type { Belt as BeltT, Finance, StudentStatus } from '../api/types';
 
 export const ICONS = {
@@ -55,7 +55,7 @@ export function Avatar({ name, initials, size = 30, ring, onClick }: { name: str
 /** Faixa: cor do nível + ponteira com graus (BJJ). */
 export function Belt({ b, w = 30, h = 9 }: { b: BeltT; w?: number; h?: number }) {
   return (
-    <div className="belt" style={{ width: w, height: h, background: b.color }} title={b.label}>
+    <div className="belt" style={{ width: w, height: h, background: beltBg(b.color, b.color2, Math.max(3, Math.round(h / 2.5))) }} title={b.label}>
       {b.hasBar && (
         <div className="belt-bar" style={{ width: Math.round(w * 0.37), background: b.bar }}>
           {Array.from({ length: b.stripes }, (_, i) => (

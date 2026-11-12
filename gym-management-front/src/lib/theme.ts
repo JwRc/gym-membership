@@ -31,6 +31,10 @@ export function avatarColors(name: string, theme: Theme) {
     : { bg: `hsl(${h} 26% 20%)`, fg: `hsl(${h} 62% 80%)` };
 }
 
+/** Fundo de uma faixa: cor única ou listras diagonais (faixa bicolor, ex.: kruang). */
+export const beltBg = (color: string, color2?: string | null, stripe = 4) =>
+  color2 ? `repeating-linear-gradient(135deg, ${color} 0 ${stripe}px, ${color2} ${stripe}px ${stripe * 2}px)` : color;
+
 /** Fundo suave para a cor de uma modalidade. */
 export const soft = (hex: string, a = 0.14) => {
   const n = parseInt(hex.slice(1), 16);
