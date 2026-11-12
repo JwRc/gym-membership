@@ -14,5 +14,7 @@
   },
   // API_ORIGIN fica no painel; sem isto o deploy apagaria as variáveis de lá
   "keep_vars": true,
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // branches fora da produção rodam `wrangler preview`, que exige este bloco (pode ficar vazio)
+  "previews": {}
 }
