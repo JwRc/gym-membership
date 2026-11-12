@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { del, get, patch, post } from '../api/client';
 import type { DisciplineT, Level } from '../api/types';
-import { Alert, ErrorBox, Field, ICONS, Icon, Loading, Modal } from '../components/ui';
+import { Alert, Belt, ErrorBox, Field, ICONS, Icon, Loading, Modal } from '../components/ui';
 import { useMutate } from '../modals/useMutate';
 import { brl, moneyInput, parseMoney } from '../lib/format';
+import { beltBg } from '../lib/theme';
 
 interface Resp {
   colors: string[];
@@ -16,7 +17,7 @@ const COLS = 'minmax(150px,1.5fr) minmax(130px,1.1fr) minmax(110px,1fr) minmax(1
 
 const Dots = ({ levels }: { levels: Level[] }) => (
   <div className="row" style={{ gap: 3 }}>
-    {levels.map((l, i) => <span key={i} title={l.name} style={{ width: 12, height: 6, borderRadius: 2, background: l.color, boxShadow: 'inset 0 0 0 1px var(--beltln)' }} />)}
+    {levels.map((l, i) => <span key={i} title={l.name} style={{ width: 12, height: 6, borderRadius: 2, background: beltBg(l.color, l.color2, 3), boxShadow: 'inset 0 0 0 1px var(--beltln)' }} />)}
   </div>
 );
 
@@ -83,8 +84,8 @@ function DisciplineModal({ d, colors, instructors, onClose }: { d?: DisciplineT;
   const [system, setSystem] = useState(d?.system ?? 'Níveis');
   const [instructorId, setInstr] = useState(d?.instructor?.id ?? instructors[0]?.id ?? '');
   const [price, setPrice] = useState(d ? moneyInput(d.monthlyPrice) : '');
-  const [levels, setLevels] = useState<{ name: string; color: string; m: string; a: string }[]>(
-    (d?.levels ?? []).map((l) => ({ name: l.name, color: l.color, m: l.minMonths?.toString() ?? '', a: l.minClasses?.toString() ?? '' })),
+  const [levels, setLevels] = useState<{ name: string; color: string; c2: string | null; m: string; a: string }[]>(
+    (d?.levels ?? []).map((l) => ({ name: l.name, color: l.color, c2: l.color2 ?? null, m: l.minMonths?.toString() ?? '', a: l.minClasses?.toString() ?? '' })),
   );
   const m = useMutate();
   const upd = (i: number, p: Partial<(typeof levels)[number]>) => setLevels(levels.map((l, k) => (k === i ? { ...l, ...p } : l)));
@@ -93,12 +94,13 @@ function DisciplineModal({ d, colors, instructors, onClose }: { d?: DisciplineT;
     if (!(monthlyPrice >= 0)) return m.setErr('Informe a mensalidade.');
     const body = {
       name, color, system, instructorId: instructorId || null, monthlyPrice,
-      levels: levels.map((l) => ({ name: l.name, color: l.color, minMonths: l.m === '' ? null : Number(l.m), minClasses: l.a === '' ? null : Number(l.a) })),
+      levels: levels.map((l) => ({ name: l.name, color: l.color, color2: l.c2, minMonths: l.m === '' ? null : Number(l.m), minClasses: l.a === '' ? null : Number(l.a) })),
     };
     const r = await m.run(() => (d ? patch(`/disciplines/${d.id}`, body) : post('/disciplines', body)), `${name} salva`);
     if (r) onClose();
   };
-  const L = 'minmax(0,30px) 44px minmax(0,1fr) 90px 90px 28px';
+  const L = 'minmax(0,30px) 96px minmax(0,1fr) 90px 90px 28px';
+  const pick = { width: 32, height: 28, padding: 0, border: '1px solid var(--bd2)', borderRadius: 6, background: 'transparent', flexShrink: 0 } as const;
   return (
     <Modal width={640} onClose={onClose}
       title={<span className="row gap8">{d ? `Editar ${d.name}` : 'Nova modalidade'}{d && <span className={'pill ' + (!d.origin ? 'pill-blue' : d.customized ? 'pill-gold' : 'pill-mute')}>{!d.origin ? 'Própria' : d.customized ? 'Personalizada' : 'Catálogo padrão'}</span>}</span>}
@@ -124,15 +126,28 @@ function DisciplineModal({ d, colors, instructors, onClose }: { d?: DisciplineT;
           {levels.map((l, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: L, gap: 8, padding: '6px 10px', alignItems: 'center', borderBottom: '1px solid var(--line2)' }}>
               <span className="mono" style={{ fontSize: 12, color: 'var(--mute2)' }}>{i + 1}</span>
-              <input type="color" value={l.color} onChange={(e) => upd(i, { color: e.target.value.toUpperCase() })} style={{ width: 40, height: 28, padding: 0, border: '1px solid var(--bd2)', borderRadius: 6, background: 'transparent' }} />
-              <input className="input" style={{ height: 30 }} value={l.name} onChange={(e) => upd(i, { name: e.target.value })} placeholder="Nome do nível" />
+              <div className="row" style={{ gap: 4 }}>
+                <input type="color" title="Cor" value={l.color} onChange={(e) => upd(i, { color: e.target.value.toUpperCase() })} style={pick} />
+                {l.c2 ? (
+                  <>
+                    <input type="color" title="2ª cor" value={l.c2} onChange={(e) => upd(i, { c2: e.target.value.toUpperCase() })} style={pick} />
+                    <button className="icon-btn" style={{ width: 20, height: 20 }} title="Remover 2ª cor" onClick={() => upd(i, { c2: null })}><Icon d={ICONS.close} size={10} /></button>
+                  </>
+                ) : (
+                  <button className="btn btn-sm" style={{ height: 28, padding: '0 8px' }} title="Faixa de duas cores (ex.: kruang)" onClick={() => upd(i, { c2: l.color })}>+ cor</button>
+                )}
+              </div>
+              <div className="row gap8">
+                <Belt b={{ color: l.color, color2: l.c2, bar: l.color, hasBar: false, stripes: 0, name: l.name, label: l.name }} w={30} h={9} />
+                <input className="input" style={{ height: 30, flex: 1, minWidth: 0 }} value={l.name} onChange={(e) => upd(i, { name: e.target.value })} placeholder="Nome do nível" />
+              </div>
               <input className="input num" style={{ height: 30 }} value={l.m} onChange={(e) => upd(i, { m: e.target.value.replace(/\D/g, '') })} placeholder="—" />
               <input className="input num" style={{ height: 30 }} value={l.a} onChange={(e) => upd(i, { a: e.target.value.replace(/\D/g, '') })} placeholder="—" />
               <button className="icon-btn" disabled={(d?.students ?? 0) > 0 && i < (d?.levels.length ?? 0)} title="Remover nível" onClick={() => setLevels(levels.filter((_, k) => k !== i))}><Icon d={ICONS.close} size={12} /></button>
             </div>
           ))}
           {!levels.length && <div style={{ padding: 14, fontSize: 12.5, color: 'var(--mute2)' }}>Sem níveis — a modalidade não terá graduação.</div>}
-          {levels.length < 15 && <div style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--sub)', cursor: 'pointer' }} onClick={() => setLevels([...levels, { name: '', color: '#EDEDEA', m: '', a: '' }])}>+ Adicionar nível</div>}
+          {levels.length < 15 && <div style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--sub)', cursor: 'pointer' }} onClick={() => setLevels([...levels, { name: '', color: '#EDEDEA', c2: null, m: '', a: '' }])}>+ Adicionar nível</div>}
         </div>
         <div style={{ fontSize: 12, color: 'var(--mute2)', marginTop: 8 }}>Deixe os mínimos em branco no último nível (graduação máxima).</div>
       </div>

@@ -1,4 +1,5 @@
 import type { StudentDetail } from '../api/types';
+import { beltBg } from '../lib/theme';
 import { Belt } from './ui';
 
 /** Cartão "Graduação" (ficha do aluno e portal). */
@@ -27,7 +28,7 @@ export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onG
               {g.history.map((h, k) => (
                 <div key={k} className="row gap12" style={{ alignItems: 'stretch' }}>
                   <div className="col" style={{ alignItems: 'center', width: 12 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: h.color, boxShadow: 'inset 0 0 0 1px var(--beltln)', marginTop: 4, flexShrink: 0 }} />
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: beltBg(h.color, h.color2, 3), boxShadow: 'inset 0 0 0 1px var(--beltln)', marginTop: 4, flexShrink: 0 }} />
                     {k < g.history.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--line)', margin: '3px 0' }} />}
                   </div>
                   <div className="row between grow" style={{ paddingBottom: 12 }}>

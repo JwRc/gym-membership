@@ -14,7 +14,7 @@ export interface Me {
 }
 
 export interface Tag { id: string; name: string; color: string }
-export interface Belt { color: string; bar: string; hasBar: boolean; stripes: number; name: string; label: string }
+export interface Belt { color: string; color2?: string | null; bar: string; hasBar: boolean; stripes: number; name: string; label: string }
 export interface Finance { key: 'ok' | 'today' | 'late' | 'exempt' | 'none'; label: string; days?: number }
 
 export interface RankView {
@@ -27,7 +27,7 @@ export interface RankView {
   nextLabel: string;
   since: string;
   timeInRank: string;
-  history?: { title: string; date: string; color: string; instructor: string | null }[];
+  history?: { title: string; date: string; color: string; color2?: string | null; instructor: string | null }[];
 }
 
 export interface StudentRow {
@@ -71,7 +71,7 @@ export interface FinanceSummary {
   income: number; expense: number; incomeOpen: number; incomeOverdue: number; expenseOpen: number; balance: number; forecast: number; incomeAll: number; expenseAll: number;
 }
 
-export interface Level { order?: number; name: string; color: string; minMonths: number | null; minClasses: number | null }
+export interface Level { order?: number; name: string; color: string; color2?: string | null; minMonths: number | null; minClasses: number | null }
 export interface DisciplineT {
   id: string; name: string; color: string; system: string; origin: { id: string; name: string } | null; customized: boolean; customizedAt: string | null;
   degreesPerLevel: number; levels: Level[]; instructor: { id: string; name: string } | null; monthlyPrice: number; students: number;
