@@ -44,25 +44,27 @@ export class StoreService {
         take: 200,
       }),
     ]);
+    const active = products.filter((p) => !p.archived);
     const monthSales = sales.filter((s) => s.date >= range.gte && s.date < range.lt);
     const soldMonth = new Map<string, number>();
     monthSales.forEach((s) => s.items.forEach((i) => soldMonth.set(i.productId, (soldMonth.get(i.productId) ?? 0) + i.qty)));
     const revenue = monthSales.reduce((a, s) => a + s.items.reduce((b, i) => b + i.qty * num(i.unitPrice), 0), 0);
     const cost = monthSales.reduce((a, s) => a + s.items.reduce((b, i) => b + i.qty * num(i.unitCost), 0), 0);
     const units = monthSales.reduce((a, s) => a + s.items.reduce((b, i) => b + i.qty, 0), 0);
-    const stockValue = products.reduce((a, p) => a + p.stock * num(p.cost), 0);
+    const stockValue = active.reduce((a, p) => a + p.stock * num(p.cost), 0);
     return {
       categories: PRODUCT_CATEGORIES,
       summary: {
         revenue: money(revenue), salesCount: monthSales.length, units,
         cost: money(cost), profit: money(revenue - cost), margin: revenue ? (revenue - cost) / revenue : 0,
-        stockValue: money(stockValue), stockUnits: products.reduce((a, p) => a + p.stock, 0),
-        lowStock: products.filter((p) => p.stock <= p.minStock).length,
+        stockValue: money(stockValue), stockUnits: active.reduce((a, p) => a + p.stock, 0),
+        lowStock: active.filter((p) => p.stock <= p.minStock).length,
       },
       products: products.map((p) => ({
         id: p.id, name: p.name, category: p.category, price: num(p.price), cost: num(p.cost),
         margin: num(p.price) ? (num(p.price) - num(p.cost)) / num(p.price) : 0,
         stock: p.stock, minStock: p.minStock, low: p.stock <= p.minStock, soldMonth: soldMonth.get(p.id) ?? 0,
+        archived: p.archived,
       })),
       sales: sales.map((s) => {
         const total = s.items.reduce((a, i) => a + i.qty * num(i.unitPrice), 0);
@@ -89,11 +91,19 @@ export class StoreService {
     return { id };
   }
 
+  /** Arquivar tira o produto da listagem e do PDV sem apagar: vendas antigas continuam apontando para ele. */
+  async setArchived(tenantId: string, id: string, archived: boolean) {
+    const p = await this.prisma.product.findFirst({ where: { id, tenantId } });
+    if (!p) throw new NotFoundException('Produto não encontrado.');
+    await this.prisma.product.update({ where: { id }, data: { archived } });
+    return { id };
+  }
+
   /** Venda: baixa o estoque e lança entrada (Loja) + saída (Custo de produtos) no financeiro. */
   async createSale(tenantId: string, dto: SaleDto) {
     const ids = [...new Set(dto.items.map((i) => i.productId))];
     if (ids.length !== dto.items.length) throw new BadRequestException('Produto repetido na venda.');
-    const products = await this.prisma.product.findMany({ where: { tenantId, id: { in: ids } } });
+    const products = await this.prisma.product.findMany({ where: { tenantId, archived: false, id: { in: ids } } });
     if (products.length !== ids.length) throw new BadRequestException('Produto inválido.');
     const P = new Map(products.map((p) => [p.id, p]));
     for (const i of dto.items) {
@@ -150,6 +160,12 @@ export class StoreController {
   }
   @Can('store.write') @Patch('products/:id') updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
     return this.svc.updateProduct(u.tenantId, id, dto);
+  }
+  @Can('store.write') @Post('products/:id/archive') archiveProduct(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.svc.setArchived(u.tenantId, id, true);
+  }
+  @Can('store.write') @Post('products/:id/restore') restoreProduct(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.svc.setArchived(u.tenantId, id, false);
   }
   @Can('store.sell') @Post('sales') createSale(@CurrentUser() u: AuthUser, @Body() dto: SaleDto) {
     return this.svc.createSale(u.tenantId, dto);

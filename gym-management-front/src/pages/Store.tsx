@@ -6,7 +6,7 @@ import { Alert, ErrorBox, Field, ICONS, Icon, Loading, Modal, Seg } from '../com
 import { useMutate } from '../modals/useMutate';
 import { MONTHS, PAYMENT_OPTIONS, br, brl, moneyInput, parseMoney, pct, todayISO } from '../lib/format';
 
-interface Product { id: string; name: string; category: string; price: number; cost: number; margin: number; stock: number; minStock: number; low: boolean; soldMonth: number }
+interface Product { id: string; name: string; category: string; price: number; cost: number; margin: number; stock: number; minStock: number; low: boolean; soldMonth: number; archived: boolean }
 interface Resp {
   categories: string[];
   summary: { revenue: number; salesCount: number; units: number; cost: number; profit: number; margin: number; stockValue: number; stockUnits: number; lowStock: number };
@@ -18,13 +18,30 @@ const VCOLS = '60px 90px minmax(220px,2.4fr) minmax(160px,1.4fr) 140px 110px 100
 
 export function StorePage() {
   const q = useQuery({ queryKey: ['store'], queryFn: () => get<Resp>('/store') });
-  const [tab, setTab] = useState<'products' | 'sales'>('products');
+  const [tab, setTab] = useState<'products' | 'sales' | 'archived'>('products');
   const [pm, setPm] = useState<Product | 'new' | null>(null);
   const [sale, setSale] = useState<string | 'new' | null>(null);
+  const m = useMutate();
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const d = q.data!;
   const s = d.summary;
+  const active = d.products.filter((p) => !p.archived);
+  const archived = d.products.filter((p) => p.archived);
+  // se o último arquivado for restaurado, a aba some: volta para Produtos
+  const view = tab === 'archived' && !archived.length ? 'products' : tab;
+  const productRow = (x: Product, action: React.ReactNode) => (
+    <div key={x.id} className="trow click" style={{ gridTemplateColumns: PCOLS }} onClick={() => setPm(x)}>
+      <div style={{ minWidth: 0 }}><div className="ellipsis" style={{ fontSize: 13.5, fontWeight: 500 }}>{x.name}</div><div style={{ fontSize: 12, color: 'var(--mute2)', marginTop: 1 }}>{x.category}</div></div>
+      <div className="right num" style={{ fontSize: 13 }}>{brl(x.price)}</div>
+      <div className="right num muted" style={{ fontSize: 13 }}>{brl(x.cost)}</div>
+      <div className="right num" style={{ fontSize: 13, color: 'var(--ok)' }}>{pct(x.margin)}</div>
+      <div className="row gap8"><span className="num" style={{ fontSize: 13 }}>{x.stock} un.</span>{x.low && !x.archived && <span className="pill pill-bad">Baixo</span>}</div>
+      <div className="right num muted" style={{ fontSize: 13 }}>{x.soldMonth}</div>
+      <div className="right">{action}</div>
+    </div>
+  );
+  const pheader = <div className="thead" style={{ gridTemplateColumns: PCOLS }}><div>Produto</div><div className="right">Preço de venda</div><div className="right">Custo</div><div className="right">Margem</div><div>Estoque</div><div className="right">Vendidos/mês</div><div /></div>;
   const month = MONTHS[new Date().getMonth()].toLowerCase();
   return (
     <div className="page">
@@ -43,26 +60,22 @@ export function StorePage() {
       </div>
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--line)' }}>
-          <Seg value={tab} onChange={setTab} options={[
-            { v: 'products', label: 'Produtos', extra: <span className="num" style={{ fontSize: 11, color: 'var(--mute2)' }}>{d.products.length}</span> },
+          <Seg value={view} onChange={setTab} options={[
+            { v: 'products', label: 'Produtos', extra: <span className="num" style={{ fontSize: 11, color: 'var(--mute2)' }}>{active.length}</span> },
             { v: 'sales', label: 'Vendas', extra: <span className="num" style={{ fontSize: 11, color: 'var(--mute2)' }}>{d.sales.length}</span> },
+            ...(archived.length ? [{ v: 'archived' as const, label: 'Arquivados', extra: <span className="num" style={{ fontSize: 11, color: 'var(--mute2)' }}>{archived.length}</span> }] : []),
           ]} />
         </div>
-        {tab === 'products' ? (
+        {view === 'products' ? (
           <>
-            <div className="thead" style={{ gridTemplateColumns: PCOLS }}><div>Produto</div><div className="right">Preço de venda</div><div className="right">Custo</div><div className="right">Margem</div><div>Estoque</div><div className="right">Vendidos/mês</div><div /></div>
-            {d.products.map((x) => (
-              <div key={x.id} className="trow click" style={{ gridTemplateColumns: PCOLS }} onClick={() => setPm(x)}>
-                <div style={{ minWidth: 0 }}><div className="ellipsis" style={{ fontSize: 13.5, fontWeight: 500 }}>{x.name}</div><div style={{ fontSize: 12, color: 'var(--mute2)', marginTop: 1 }}>{x.category}</div></div>
-                <div className="right num" style={{ fontSize: 13 }}>{brl(x.price)}</div>
-                <div className="right num muted" style={{ fontSize: 13 }}>{brl(x.cost)}</div>
-                <div className="right num" style={{ fontSize: 13, color: 'var(--ok)' }}>{pct(x.margin)}</div>
-                <div className="row gap8"><span className="num" style={{ fontSize: 13 }}>{x.stock} un.</span>{x.low && <span className="pill pill-bad">Baixo</span>}</div>
-                <div className="right num muted" style={{ fontSize: 13 }}>{x.soldMonth}</div>
-                <div className="right"><button className="btn btn-sm" disabled={!x.stock} onClick={(e) => { e.stopPropagation(); setSale(x.id); }}>Vender</button></div>
-              </div>
-            ))}
-            {!d.products.length && <div className="empty">Nenhum produto cadastrado.</div>}
+            {pheader}
+            {active.map((x) => productRow(x, <button className="btn btn-sm" disabled={!x.stock} onClick={(e) => { e.stopPropagation(); setSale(x.id); }}>Vender</button>))}
+            {!active.length && <div className="empty">Nenhum produto cadastrado.</div>}
+          </>
+        ) : view === 'archived' ? (
+          <>
+            {pheader}
+            {archived.map((x) => productRow(x, <button className="btn btn-sm" disabled={m.busy} onClick={(e) => { e.stopPropagation(); m.run(() => post(`/store/products/${x.id}/restore`), `${x.name} restaurado`); }}>Restaurar</button>))}
           </>
         ) : (
           <>
@@ -79,7 +92,7 @@ export function StorePage() {
         )}
       </div>
       {pm && <ProductModal product={pm === 'new' ? undefined : pm} categories={d.categories} onClose={() => setPm(null)} />}
-      {sale && <SaleModal products={d.products} initial={sale === 'new' ? undefined : sale} onClose={() => setSale(null)} />}
+      {sale && <SaleModal products={active}initial={sale === 'new' ? undefined : sale} onClose={() => setSale(null)} />}
     </div>
   );
 }
@@ -99,8 +112,16 @@ function ProductModal({ product, categories, onClose }: { product?: Product; cat
     const r = await m.run(() => (product ? patch(`/store/products/${product.id}`, body) : post('/store/products', body)), 'Produto salvo');
     if (r) onClose();
   };
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const archive = async () => {
+    if (!confirmArchive) return setConfirmArchive(true);
+    const r = await m.run(() => post(`/store/products/${product!.id}/archive`), 'Produto arquivado');
+    if (r) onClose();
+  };
   return (
-    <Modal title={product ? 'Editar produto' : 'Novo produto'} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy} onClick={save}>Salvar produto</button></>}>
+    <Modal title={product ? 'Editar produto' : 'Novo produto'} onClose={onClose} footer={<>
+      {product && !product.archived && <button className="btn" style={{ marginRight: 'auto', color: confirmArchive ? 'var(--bad)' : undefined }} disabled={m.busy} onClick={archive}>{confirmArchive ? 'Confirmar arquivamento' : 'Arquivar'}</button>}
+      <button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy} onClick={save}>Salvar produto</button></>}>
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Nome do produto"><input className="input" value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: Kimono Tatame Preto A2" autoFocus /></Field>
         <Field label="Categoria"><select className="input" value={f.category} onChange={(e) => set({ category: e.target.value })}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field>
