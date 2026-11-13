@@ -377,6 +377,7 @@ model Product {
   cost     Decimal    @db.Decimal(10, 2)
   stock    Int        @default(0)
   minStock Int        @default(0)
+  archived Boolean    @default(false)
   items    SaleItem[]
 
   @@index([tenantId])
