@@ -7,6 +7,9 @@ import { WEEKDAYS, hm } from '../lib/format';
 import { soft } from '../lib/theme';
 import { useMutate } from './useMutate';
 
+/** 06:00 a 21:30, de 15 em 15 min (sempre 24h, independente do idioma do navegador). */
+const START_TIMES = Array.from({ length: (1290 - 360) / 15 + 1 }, (_, i) => 360 + i * 15);
+
 export function SlotModal({ init, classes, instructors, onClose }: { init: { day: number; sm: number }; classes: ClassGroup[]; instructors: { id: string; name: string }[]; onClose: () => void }) {
   const disc = useQuery({ queryKey: ['disciplines'], queryFn: () => get<{ disciplines: DisciplineT[] }>('/disciplines') });
   const [mode, setMode] = useState<'new' | 'existing'>(classes.length ? 'new' : 'new');
@@ -78,7 +81,9 @@ export function SlotModal({ init, classes, instructors, onClose }: { init: { day
           <select className="input" value={day} onChange={(e) => setDay(Number(e.target.value))}>{WEEKDAYS.map((n, i) => <option key={i} value={i}>{n}</option>)}</select>
         </Field>
         <Field label="Início">
-          <input className="input" type="time" step={900} value={hm(sm)} onChange={(e) => { const [h, mm] = (e.target.value || '00:00').split(':').map(Number); setSm(Math.max(360, Math.min(1290, h * 60 + mm))); }} />
+          <select className="input" value={sm} onChange={(e) => setSm(Number(e.target.value))}>
+            {[...new Set([...START_TIMES, sm])].sort((a, b) => a - b).map((t) => <option key={t} value={t}>{hm(t)}</option>)}
+          </select>
         </Field>
         <Field label="Duração">
           <select className="input" value={dur} onChange={(e) => setDur(Number(e.target.value))}>

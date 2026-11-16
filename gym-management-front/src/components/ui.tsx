@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, useEffect } from 'react';
+import { CSSProperties, ReactNode, useEffect, useState } from 'react';
 import { useApp } from '../auth/AppContext';
 import { avatarColors, beltBg } from '../lib/theme';
 import type { Belt as BeltT, Finance, StudentStatus } from '../api/types';
@@ -95,6 +95,40 @@ export function Progress({ value, color }: { value: number | null; color: string
     <div className="progress">
       <div style={{ width: `${Math.min(1, value ?? 0) * 100}%`, background: color }} />
     </div>
+  );
+}
+
+/** "05/10/2026" → "2026-10-05"; null se incompleta ou inexistente. */
+function parseBr(s: string): string | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1900 || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+const isoToBr = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+
+/**
+ * Campo de data sempre em dd/mm/aaaa (o <input type="date"> nativo segue o
+ * idioma do navegador). Recebe e devolve ISO "aaaa-mm-dd"; '' se vazio ou inválido.
+ */
+export function DateInput({ value, onChange, style }: { value: string; onChange: (iso: string) => void; style?: CSSProperties }) {
+  const [text, setText] = useState(() => isoToBr(value));
+  useEffect(() => {
+    // valor trocado de fora (ex.: vencimento recalculado) — não sobrescreve o que está sendo digitado
+    if (value !== (parseBr(text) ?? '')) setText(isoToBr(value));
+  }, [value]);
+  const change = (raw: string) => {
+    const dg = raw.replace(/\D/g, '').slice(0, 8);
+    const t = dg.length > 4 ? `${dg.slice(0, 2)}/${dg.slice(2, 4)}/${dg.slice(4)}` : dg.length > 2 ? `${dg.slice(0, 2)}/${dg.slice(2)}` : dg;
+    setText(t);
+    onChange(parseBr(t) ?? '');
+  };
+  const bad = text.length === 10 && !parseBr(text);
+  return (
+    <input className="input" inputMode="numeric" placeholder="dd/mm/aaaa" maxLength={10} value={text} onChange={(e) => change(e.target.value)}
+      style={{ ...style, ...(bad ? { borderColor: 'var(--bad)' } : {}) }} title={bad ? 'Data inválida' : undefined} />
   );
 }
 
