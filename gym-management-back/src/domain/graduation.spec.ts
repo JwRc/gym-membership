@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { beltVisual, DisciplineRules, nextRank, progress, rankLabel, requirementFor } from './graduation';
+import { beltVisual, DisciplineRules, invalidRank, maxDegree, nextRank, progress, rankLabel, requirementFor } from './graduation';
 
 const bjj: DisciplineRules = {
   system: 'Faixas e graus',
@@ -79,4 +79,16 @@ test('faixa bicolor: beltVisual devolve a 2ª cor; faixa simples devolve null', 
   const b = beltVisual(mt, 1, 0);
   assert.equal(b.color, '#EDEDEA');
   assert.equal(b.color2, '#EAC02E');
+});
+
+test('graduação livre: limites de grau por faixa', () => {
+  assert.equal(maxDegree(bjj, 1), 4);
+  assert.equal(maxDegree(bjj, 4), 6);
+  assert.equal(maxDegree(boxe, 1), 0);
+  assert.equal(invalidRank(bjj, 0, 4), null); // pode descer/pular para qualquer faixa
+  assert.equal(invalidRank(bjj, 4, 6), null);
+  assert.match(invalidRank(bjj, 1, 5)!, /entre 0 e 4/);
+  assert.match(invalidRank(bjj, 9, 0)!, /Nível inválido/);
+  assert.equal(invalidRank(boxe, 2, 0), null);
+  assert.match(invalidRank(boxe, 2, 1)!, /não tem graus/);
 });

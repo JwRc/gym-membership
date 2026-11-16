@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Patch, Post } from '@nestjs/common';
-import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { Body, Controller, Get, Injectable, Module, Patch, Post } from '@nestjs/common';
+import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
@@ -14,11 +14,6 @@ class UpdateTenantDto {
   @IsOptional() @IsInt() @Min(0) @Max(30) lateToleranceDays?: number;
   @IsOptional() @IsBoolean() autoGenerateInvoices?: boolean;
 }
-class PlanDto {
-  @IsString() @MinLength(2) name: string;
-  @IsOptional() @IsString() description?: string;
-  @IsNumber() @Min(0) price: number;
-}
 class InstructorDto {
   @IsString() @MinLength(3) name: string;
 }
@@ -31,7 +26,7 @@ export class TenantService {
     const t = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       include: {
-        plans: { orderBy: { price: 'desc' } },
+        plans: { where: { archived: false }, orderBy: { price: 'desc' } },
         instructors: { orderBy: { name: 'asc' } },
         disciplines: {
           where: { archived: false },
@@ -57,15 +52,6 @@ export class TenantService {
     return this.get(tenantId);
   }
 
-  async addPlan(tenantId: string, dto: PlanDto) {
-    const p = await this.prisma.plan.create({ data: { tenantId, ...dto } });
-    return { id: p.id };
-  }
-  async removePlan(tenantId: string, id: string) {
-    const r = await this.prisma.plan.deleteMany({ where: { id, tenantId } });
-    if (!r.count) throw new NotFoundException('Plano não encontrado.');
-    return { ok: true };
-  }
   async addInstructor(tenantId: string, dto: InstructorDto) {
     const i = await this.prisma.instructor.create({ data: { tenantId, name: dto.name.trim() } });
     return { id: i.id };
@@ -103,12 +89,6 @@ export class TenantController {
   }
   @Can('dashboard.read') @Get('onboarding') onboarding(@CurrentUser() u: AuthUser) {
     return this.svc.onboarding(u.tenantId);
-  }
-  @Can('settings.write') @Post('plans') addPlan(@CurrentUser() u: AuthUser, @Body() dto: PlanDto) {
-    return this.svc.addPlan(u.tenantId, dto);
-  }
-  @Can('settings.write') @Delete('plans/:id') removePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
-    return this.svc.removePlan(u.tenantId, id);
   }
   @Can('settings.write') @Post('instructors') addInstructor(@CurrentUser() u: AuthUser, @Body() dto: InstructorDto) {
     return this.svc.addInstructor(u.tenantId, dto);

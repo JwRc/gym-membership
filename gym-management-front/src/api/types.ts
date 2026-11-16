@@ -14,6 +14,11 @@ export interface Me {
 }
 
 export interface Tag { id: string; name: string; color: string }
+export interface Plan {
+  id: string; name: string; description: string | null; price: number; archived: boolean;
+  disciplines: Tag[]; classGroups: Tag[]; studentCount: number;
+  students: { id: string; name: string; initials: string; status: StudentStatus }[];
+}
 export interface Belt { color: string; color2?: string | null; bar: string; hasBar: boolean; stripes: number; name: string; label: string }
 export interface Finance { key: 'ok' | 'today' | 'late' | 'exempt' | 'none'; label: string; days?: number }
 
@@ -27,7 +32,7 @@ export interface RankView {
   nextLabel: string;
   since: string;
   timeInRank: string;
-  history?: { title: string; date: string; color: string; color2?: string | null; instructor: string | null }[];
+  history?: { id?: string; title: string; date: string; color: string; color2?: string | null; instructor: string | null }[];
 }
 
 export interface StudentRow {

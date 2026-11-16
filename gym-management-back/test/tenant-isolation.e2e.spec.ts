@@ -32,7 +32,7 @@ let http: ReturnType<typeof request>;
 
 type Ids = {
   token: string; tenantId: string; disciplineId: string; studentId: string; invoiceId: string; txId: string;
-  productId: string; classId: string; slotId: string; planId: string;
+  productId: string; classId: string; slotId: string; planId: string; promotionId: string;
 };
 let A: Ids;
 let B: Ids;
@@ -59,8 +59,10 @@ async function seed(label: string): Promise<Ids> {
   const pr = await http.post('/api/store/products').set(h).send({ name: `Kimono ${label}`, category: 'Kimonos', price: 300, cost: 150, stock: 5, minStock: 1 }).expect(201);
   const cl = await http.post('/api/classes').set(h).send({ name: `Turma ${label}`, disciplineId, capacity: 20 }).expect(201);
   const sl = await http.post(`/api/classes/${cl.body.id}/slots`).set(h).send({ weekday: 0, startMin: 19 * 60, endMin: 20 * 60 }).expect(201);
-  const pl = await http.post('/api/tenant/plans').set(h).send({ name: `Plano ${label}`, price: 199 }).expect(201);
+  const pl = await http.post('/api/plans').set(h).send({ name: `Plano ${label}`, price: 199, disciplineIds: [disciplineId], classGroupIds: [cl.body.id] }).expect(201);
+  const promo = await prisma.promotion.findFirstOrThrow({ where: { studentId } });
   return {
+    promotionId: promo.id,
     token, tenantId: tenant.id, disciplineId, studentId, invoiceId, txId: tx.body.id, productId: pr.body.id,
     classId: cl.body.id, slotId: sl.body.id, planId: pl.body.id,
   };
@@ -110,7 +112,17 @@ describe('usuário da academia A usando ids da academia B', () => {
     ['patch', `/api/disciplines/${B.disciplineId}`, { name: 'Invadido', color: '#000000', system: 'x', monthlyPrice: 1, levels: [] }],
     ['post', `/api/disciplines/${B.disciplineId}/restore`],
     ['delete', `/api/disciplines/${B.disciplineId}`],
-    ['delete', `/api/tenant/plans/${B.planId}`],
+    ['delete', `/api/plans/${B.planId}`],
+    ['patch', `/api/plans/${B.planId}`, { name: 'Invadido', price: 1, disciplineIds: [] }],
+    ['post', `/api/plans/${B.planId}/archive`],
+    ['post', `/api/plans/${B.planId}/restore`],
+    ['post', '/api/plans', { name: 'Plano invasor', price: 1, disciplineIds: [B.disciplineId] }],
+    ['post', '/api/plans', { name: 'Plano invasor', price: 1, disciplineIds: [A.disciplineId], classGroupIds: [B.classId] }],
+    ['patch', `/api/students/${A.studentId}`, { planId: B.planId }],
+    ['patch', `/api/students/${A.studentId}`, { classGroupIds: [B.classId] }],
+    ['put', '/api/graduation/rank', { studentId: B.studentId, disciplineId: B.disciplineId, levelOrder: 0, degree: 0, mode: 'correction' }],
+    ['delete', `/api/graduation/history/${B.promotionId}`],
+    ['delete', `/api/graduation/rank?studentId=${B.studentId}&disciplineId=${B.disciplineId}`],
     ['get', `/api/graduation/preview?studentId=${B.studentId}&disciplineId=${B.disciplineId}`],
     ['post', '/api/graduation/promote', { studentId: B.studentId, disciplineId: B.disciplineId }],
   ];
@@ -137,6 +149,7 @@ describe('usuário da academia A usando ids da academia B', () => {
       (await http.get('/api/classes').set(h)).body,
       (await http.get('/api/disciplines').set(h)).body,
       (await http.get('/api/tenant').set(h)).body,
+      (await http.get('/api/plans').set(h)).body,
       (await http.get(`/api/graduation?disciplineId=${B.disciplineId}`).set(h)).body,
       (await http.get('/api/dashboard').set(h)).body,
     ]);
@@ -157,6 +170,7 @@ describe('usuário da academia A usando ids da academia B', () => {
     assert.ok(JSON.stringify(classes.body).includes('Turma b'));
     assert.ok(await prisma.transaction.findUnique({ where: { id: B.txId } }));
     assert.ok(await prisma.plan.findUnique({ where: { id: B.planId } }));
+    assert.ok(await prisma.promotion.findUnique({ where: { id: B.promotionId } }));
     assert.equal(await prisma.classSlot.count({ where: { classGroupId: B.classId } }), 1);
   });
 });

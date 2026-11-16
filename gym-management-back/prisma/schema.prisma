@@ -60,17 +60,17 @@ enum PaymentMethod {
 }
 
 model Tenant {
-  id                    String   @id @default(cuid())
-  name                  String
-  initials              String
-  code                  String   @unique // Código de acesso dos alunos (ex.: TATAME-4821)
-  cnpj                  String?
-  phone                 String?
-  address               String?
-  dueDays               Int[]    @default([1, 5, 10, 15, 20, 30])
-  lateToleranceDays     Int      @default(3)
-  autoGenerateInvoices  Boolean  @default(true)
-  createdAt             DateTime @default(now())
+  id                   String   @id @default(cuid())
+  name                 String
+  initials             String
+  code                 String   @unique // Código de acesso dos alunos (ex.: TATAME-4821)
+  cnpj                 String?
+  phone                String?
+  address              String?
+  dueDays              Int[]    @default([1, 5, 10, 15, 20, 30])
+  lateToleranceDays    Int      @default(3)
+  autoGenerateInvoices Boolean  @default(true)
+  createdAt            DateTime @default(now())
 
   users        User[]
   instructors  Instructor[]
@@ -130,16 +130,16 @@ model Instructor {
 // ─── Catálogo padrão (global, igual para todas as academias) ───
 
 model CatalogDiscipline {
-  id                   String         @id // slug: bjj, mt, box…
-  name                 String
-  color                String
-  system               String // "Faixas e graus", "Prajied"…
-  degreesPerLevel      Int            @default(0) // BJJ: 4 graus por faixa
-  lastLevelMaxDegrees  Int            @default(0) // BJJ: faixa preta até 6º grau
-  degreeMinMonths      Int?
-  degreeMinClasses     Int?
-  levels               CatalogLevel[]
-  disciplines          Discipline[]
+  id                  String         @id // slug: bjj, mt, box…
+  name                String
+  color               String
+  system              String // "Faixas e graus", "Prajied"…
+  degreesPerLevel     Int            @default(0) // BJJ: 4 graus por faixa
+  lastLevelMaxDegrees Int            @default(0) // BJJ: faixa preta até 6º grau
+  degreeMinMonths     Int?
+  degreeMinClasses    Int?
+  levels              CatalogLevel[]
+  disciplines         Discipline[]
 }
 
 model CatalogLevel {
@@ -180,6 +180,7 @@ model Discipline {
   ranks               StudentRank[]
   promotions          Promotion[]
   classGroups         ClassGroup[]
+  plans               PlanDiscipline[]
 
   @@index([tenantId])
 }
@@ -199,15 +200,39 @@ model DisciplineLevel {
 }
 
 model Plan {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  price       Decimal   @db.Decimal(10, 2)
+  price       Decimal          @db.Decimal(10, 2)
+  archived    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
   students    Student[]
+  disciplines PlanDiscipline[]
+  classGroups PlanClassGroup[]
 
   @@index([tenantId])
+}
+
+// Modalidades do plano: quem entra no plano é matriculado nelas
+model PlanDiscipline {
+  planId       String
+  plan         Plan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  disciplineId String
+  discipline   Discipline @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
+
+  @@id([planId, disciplineId])
+}
+
+// Turmas do plano (opcional): quem entra no plano vai para elas
+model PlanClassGroup {
+  planId       String
+  plan         Plan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  classGroupId String
+  classGroup   ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  @@id([planId, classGroupId])
 }
 
 model Student {
@@ -279,18 +304,19 @@ model Promotion {
 }
 
 model ClassGroup {
-  id           String       @id @default(cuid())
+  id           String           @id @default(cuid())
   tenantId     String
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   disciplineId String
-  discipline   Discipline   @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
+  discipline   Discipline       @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
   instructorId String?
-  instructor   Instructor?  @relation(fields: [instructorId], references: [id], onDelete: SetNull)
+  instructor   Instructor?      @relation(fields: [instructorId], references: [id], onDelete: SetNull)
   name         String
   capacity     Int
   slots        ClassSlot[]
   enrollments  Enrollment[]
   attendances  Attendance[]
+  plans        PlanClassGroup[]
 
   @@index([tenantId])
 }
@@ -348,21 +374,21 @@ model Invoice {
 
 // Lançamento financeiro
 model Transaction {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  date        DateTime  @db.Date
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
   description String
   note        String?
   category    String
   type        TxType
-  amount      Decimal   @db.Decimal(10, 2)
-  status      TxStatus  @default(PENDING)
-  source      TxSource  @default(MANUAL)
-  invoiceId   String?   @unique
-  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(10, 2)
+  status      TxStatus @default(PENDING)
+  source      TxSource @default(MANUAL)
+  invoiceId   String?  @unique
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   saleId      String?
-  sale        Sale?     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, date])
 }

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { errMsg, get } from '../api/client';
+import { del, errMsg, get } from '../api/client';
 import type { StudentDetail } from '../api/types';
-import { Avatar, ErrorBox, FinancePill, InvoicePill, Loading, StatusPill } from '../components/ui';
+import { Alert, Avatar, ErrorBox, FinancePill, InvoicePill, Loading, StatusPill } from '../components/ui';
 import { RankCard, ClassesCard } from '../components/StudentBlocks';
 import { GraduationModal } from '../modals/basic';
 import { StudentModal } from '../modals/StudentModal';
+import { useMutate } from '../modals/useMutate';
 import { AnonymizeModal } from '../modals/AnonymizeModal';
 import { useApp } from '../auth/AppContext';
 import { br, brl, fileSlug, saveBlob } from '../lib/format';
@@ -29,7 +30,8 @@ export function StudentProfilePage() {
   const nav = useNavigate();
   const q = useQuery({ queryKey: ['student', id], queryFn: () => get<StudentDetail>(`/students/${id}`) });
   const { can, toast } = useApp();
-  const [modal, setModal] = useState<null | 'edit' | 'anonymize' | { grad: string }>(null);
+  const [modal, setModal] = useState<null | 'edit' | 'anonymize' | { grad: string; free?: boolean }>(null);
+  const gm = useMutate();
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const s = q.data!;
@@ -85,7 +87,10 @@ export function StudentProfilePage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,7fr) minmax(0,5fr)', gap: 16, alignItems: 'start' }}>
         <div className="col gap16">
-          <RankCard ranks={s.ranks} onGrad={(d) => setModal({ grad: d })} />
+          {gm.err && <Alert>{gm.err}</Alert>}
+          <RankCard ranks={s.ranks} onGrad={(d) => setModal({ grad: d })} onEdit={(d) => setModal({ grad: d, free: true })}
+            onDeleteHistory={(id) => gm.run(() => del(`/graduation/history/${id}`), 'Registro apagado do histórico')}
+            onRemove={(d) => gm.run(() => del(`/graduation/rank?studentId=${s.id}&disciplineId=${d}`), 'Modalidade removida')} />
           <ClassesCard classes={s.classes} empty="Sem turmas ativas." />
         </div>
         <div className="card">
@@ -115,7 +120,7 @@ export function StudentProfilePage() {
       )}
       {modal === 'edit' && <StudentModal student={s} onClose={() => setModal(null)} />}
       {modal === 'anonymize' && <AnonymizeModal student={s} onClose={() => setModal(null)} />}
-      {modal && typeof modal === 'object' && <GraduationModal disciplineId={modal.grad} studentId={s.id} onClose={() => setModal(null)} />}
+      {modal && typeof modal === 'object' && <GraduationModal disciplineId={modal.grad} studentId={s.id} free={modal.free} onClose={() => setModal(null)} />}
     </div>
   );
 }

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { del, get, patch, post } from '../api/client';
-import { Alert, ErrorBox, Field, ICONS, Icon, Loading, Modal } from '../components/ui';
+import { get, patch, post } from '../api/client';
+import { Alert, ErrorBox, Field, Loading, Modal } from '../components/ui';
 import { useMutate } from '../modals/useMutate';
-import { brl, parseMoney } from '../lib/format';
+import { brl } from '../lib/format';
 
 interface TenantT {
   name: string; code: string; cnpj: string | null; phone: string | null; address: string | null;
@@ -20,7 +20,6 @@ export function SettingsPage() {
   const q = useQuery({ queryKey: ['tenant'], queryFn: () => get<TenantT>('/tenant') });
   const m = useMutate();
   const [editing, setEditing] = useState(false);
-  const [plan, setPlan] = useState(false);
   const [instr, setInstr] = useState('');
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
@@ -86,12 +85,11 @@ export function SettingsPage() {
             </div>
           </div>
           <div className="card">
-            <div className="card-h"><div className="card-t">Planos</div><div className="card-link" onClick={() => setPlan(true)}>+ Adicionar</div></div>
+            <div className="card-h"><div className="card-t">Planos</div><div className="card-link" onClick={() => nav('/planos')}>Gerenciar →</div></div>
             {t.plans.map((p) => (
               <div key={p.id} className="row gap12" style={{ padding: '10px 18px', borderBottom: '1px solid var(--line2)' }}>
                 <div className="grow"><div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.name}</div>{p.description && <div style={{ fontSize: 12, color: 'var(--mute2)' }}>{p.description}</div>}</div>
                 <span className="num" style={{ fontSize: 13 }}>{brl(p.price)}/mês</span>
-                <button className="icon-btn" title="Remover plano" onClick={() => m.run(() => del(`/tenant/plans/${p.id}`), 'Plano removido')}><Icon d={ICONS.trash} size={13} /></button>
               </div>
             ))}
             {!t.plans.length && <div className="empty" style={{ padding: 24 }}>Nenhum plano.</div>}
@@ -99,7 +97,6 @@ export function SettingsPage() {
         </div>
       </div>
       {editing && <AcademyModal t={t} onClose={() => setEditing(false)} />}
-      {plan && <PlanModal onClose={() => setPlan(false)} />}
     </div>
   );
 }
@@ -115,24 +112,6 @@ function AcademyModal({ t, onClose }: { t: TenantT; onClose: () => void }) {
         <Field label="Telefone"><input className="input" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
       </div>
       <Field label="Endereço"><input className="input" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
-      {m.err && <Alert>{m.err}</Alert>}
-    </Modal>
-  );
-}
-
-function PlanModal({ onClose }: { onClose: () => void }) {
-  const [f, setF] = useState({ name: '', description: '', price: '' });
-  const m = useMutate();
-  const save = async () => {
-    const price = parseMoney(f.price);
-    if (!(price >= 0)) return m.setErr('Informe o valor.');
-    if (await m.run(() => post('/tenant/plans', { name: f.name, description: f.description || undefined, price }), 'Plano adicionado')) onClose();
-  };
-  return (
-    <Modal title="Novo plano" width={420} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy} onClick={save}>Adicionar</button></>}>
-      <Field label="Nome"><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex.: Plano Manhã" autoFocus /></Field>
-      <Field label="Descrição"><input className="input" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Ex.: Turmas até 13h" /></Field>
-      <Field label="Valor mensal (R$)"><input className="input num" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} placeholder="0,00" /></Field>
       {m.err && <Alert>{m.err}</Alert>}
     </Modal>
   );

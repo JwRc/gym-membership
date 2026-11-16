@@ -37,6 +37,7 @@ export function Layout() {
     ['/', 'Início', ICONS.inicio, 0],
     ['/alunos', 'Alunos', ICONS.alunos, 0],
     ['/turmas', 'Turmas', ICONS.turmas, 0],
+    ['/planos', 'Planos', ICONS.planos, 0],
     ['/graduacao', 'Graduação', ICONS.grad, 0],
     ['/financeiro', 'Financeiro', ICONS.fin, dash.data?.late.count ?? 0, 'bad'],
     ['/loja', 'Loja', ICONS.loja, 0],
