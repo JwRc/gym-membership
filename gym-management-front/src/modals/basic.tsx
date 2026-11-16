@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get, post, put } from '../api/client';
 import type { PaymentMethod, StudentDetail } from '../api/types';
-import { Alert, Belt, Field, Modal, Seg } from '../components/ui';
+import { Alert, Belt, DateInput, Field, Modal, Seg } from '../components/ui';
 import { MONTHS, PAYMENT_OPTIONS, brl, moneyInput, parseMoney, todayISO } from '../lib/format';
 import { useMutate } from './useMutate';
 
@@ -22,6 +22,7 @@ export function TransactionModal({ onClose }: { onClose: () => void }) {
   const save = async () => {
     const amount = parseMoney(valor);
     if (!(amount > 0)) return m.setErr('Informe um valor válido.');
+    if (!date) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
     if (await m.run(() => post('/finance/transactions', { type, description, amount, date, category, status }), 'Lançamento salvo')) onClose();
   };
   return (
@@ -30,7 +31,7 @@ export function TransactionModal({ onClose }: { onClose: () => void }) {
       <Field label="Descrição"><input className="input" value={description} onChange={(e) => setDesc(e.target.value)} placeholder="Ex.: Aluguel de novembro" autoFocus /></Field>
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Valor (R$)"><input className="input num" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" /></Field>
-        <Field label="Data"><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="Data"><DateInput value={date} onChange={setDate} /></Field>
       </div>
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Categoria">
@@ -50,13 +51,14 @@ export function PayInvoiceModal({ invoice, onClose }: { invoice: { id: string; r
   const [paidAt, setPaidAt] = useState(todayISO());
   const m = useMutate();
   const save = async () => {
+    if (!paidAt) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
     if (await m.run(() => post(`/invoices/${invoice.id}/pay`, { method, paidAt }), `Pagamento de ${invoice.ref} registrado`)) onClose();
   };
   return (
     <Modal title="Registrar pagamento" sub={`${invoice.name ? invoice.name + ' · ' : ''}${invoice.ref} · ${brl(invoice.amount)}`} width={420} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy} onClick={save}>Confirmar pagamento</button></>}>
       <div className="grid2" style={{ gap: 12 }}>
-        <Field label="Pago em"><input className="input" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} /></Field>
+        <Field label="Pago em"><DateInput value={paidAt} onChange={setPaidAt} /></Field>
         <Field label="Forma de pagamento">
           <select className="input" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>{PAYMENT_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</select>
         </Field>
@@ -88,6 +90,7 @@ export function LaunchInvoiceModal({ student, onClose }: { student: Pick<Student
   const amount = parseMoney(valor);
   const save = async () => {
     if (!(amount >= 0)) return m.setErr('Informe um valor válido.');
+    if (!venc || (paid && !paidAt)) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
     const r = await m.run(
       () => post<{ created: number; skipped: string[] }>(`/students/${student.id}/invoices`, { year: sel.y, month: sel.m, repeat, amount, dueDate: venc, paid, ...(paid ? { paidAt, method } : {}) }),
       (r) => `${r.created} mensalidade(s) lançada(s)` + (r.skipped.length ? ` · já existiam: ${r.skipped.join(', ')}` : ''),
@@ -112,11 +115,11 @@ export function LaunchInvoiceModal({ student, onClose }: { student: Pick<Student
       </div>
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Valor (R$)"><input className="input num" value={valor} onChange={(e) => setValor(e.target.value)} /></Field>
-        <Field label="Vencimento"><input className="input" type="date" value={venc} onChange={(e) => setVenc(e.target.value)} /></Field>
+        <Field label="Vencimento"><DateInput value={venc} onChange={setVenc} /></Field>
       </div>
       {paid && (
         <div className="grid2" style={{ gap: 12 }}>
-          <Field label="Pago em"><input className="input" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} /></Field>
+          <Field label="Pago em"><DateInput value={paidAt} onChange={setPaidAt} /></Field>
           <Field label="Forma de pagamento">
             <select className="input" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>{PAYMENT_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</select>
           </Field>
@@ -186,6 +189,7 @@ export function GraduationModal({ disciplineId, studentId, free, onClose }: { di
       return;
     }
     if (!sel || !lvl) return;
+    if (kind === 'promotion' ? !date : !sel.since) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
     const body = {
       studentId: current, disciplineId, levelOrder: sel.level, degree: Math.min(sel.degree, lvl.maxDegree), mode: kind,
       ...(kind === 'promotion' ? { date } : sel.since !== p!.current.levelSince ? { levelSince: sel.since } : {}),
@@ -249,12 +253,12 @@ export function GraduationModal({ disciplineId, studentId, free, onClose }: { di
               </Field>
               {kind === 'promotion' ? (
                 <div className="grid2" style={{ gap: 12 }}>
-                  <Field label="Data da graduação"><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+                  <Field label="Data da graduação"><DateInput value={date} onChange={setDate} /></Field>
                   <Field label="Professor"><div style={{ fontSize: 13.5, paddingTop: 8 }}>{p.instructor ?? '—'}</div></Field>
                 </div>
               ) : (
                 <Field label="Na faixa atual desde" hint="Usado no tempo de faixa. Deixe como está se não souber.">
-                  <input className="input" type="date" value={sel.since} onChange={(e) => setPick({ ...sel, since: e.target.value })} style={{ maxWidth: 200 }} />
+                  <DateInput value={sel.since} onChange={(v) => setPick({ ...sel, since: v })} style={{ maxWidth: 200 }} />
                 </Field>
               )}
             </>

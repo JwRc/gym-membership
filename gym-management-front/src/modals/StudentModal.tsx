@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get, patch, post } from '../api/client';
 import type { ClassGroup, DisciplineT, Plan, StudentDetail, StudentStatus } from '../api/types';
-import { Alert, Field, Modal } from '../components/ui';
+import { Alert, DateInput, Field, Modal } from '../components/ui';
 import { moneyInput, parseMoney } from '../lib/format';
 import { soft } from '../lib/theme';
 import { useMutate } from './useMutate';
@@ -73,6 +73,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
   const save = async () => {
     const monthlyFee = parseMoney(f.fee);
     if (!(monthlyFee >= 0)) return m.setErr('Informe a mensalidade.');
+    if (!f.birthDate) return m.setErr('Informe a data de nascimento (dd/mm/aaaa).');
     const body = {
       name: f.name, gender: f.gender || undefined, birthDate: f.birthDate, email: f.email, phone: f.phone || undefined,
       monthlyFee, dueDay: Number(f.dueDay), planId: editing ? f.planId || null : f.planId || undefined, medicalNotes: f.medicalNotes || undefined,
@@ -85,7 +86,6 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       const r = await m.run(() => patch<Saved>(`/students/${student!.id}`, { ...body, status: f.status, addRanks: newRanks }), withWarnings('Cadastro atualizado'));
       if (r) onClose();
     } else {
-      if (!f.birthDate) return m.setErr('Informe a data de nascimento.');
       if (!f.consent) return m.setErr('Confirme o consentimento do aluno (ou responsável) para o uso dos dados.');
       const r = await m.run(() => post<Saved>('/students', { ...body, ranks: newRanks }), withWarnings(`${f.name} cadastrado`));
       if (r) {
@@ -101,7 +101,7 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Nome completo"><input className="input" value={f.name} onChange={(e) => set({ name: e.target.value })} autoFocus /></Field>
         <div className="grid2" style={{ gap: 12 }}>
-          <Field label="Nascimento"><input className="input" type="date" value={f.birthDate} onChange={(e) => set({ birthDate: e.target.value })} /></Field>
+          <Field label="Nascimento"><DateInput value={f.birthDate} onChange={(v) => set({ birthDate: v })} /></Field>
           <Field label="Sexo">
             <select className="input" value={f.gender} onChange={(e) => set({ gender: e.target.value as 'M' | 'F' | '' })}><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select>
           </Field>

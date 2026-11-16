@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { get, patch, post } from '../api/client';
 import type { PaymentMethod, StudentRow } from '../api/types';
-import { Alert, ErrorBox, Field, ICONS, Icon, Loading, Modal, Seg } from '../components/ui';
+import { Alert, DateInput, ErrorBox, Field, ICONS, Icon, Loading, Modal, Seg } from '../components/ui';
 import { useMutate } from '../modals/useMutate';
 import { MONTHS, PAYMENT_OPTIONS, br, brl, moneyInput, parseMoney, pct, todayISO } from '../lib/format';
 
@@ -157,6 +157,7 @@ function SaleModal({ products, initial, onClose }: { products: Product[]; initia
   const warn = items.map((i) => P.get(i.pid)).find((p, k) => p && items[k].qty > p.stock);
   const upd = (k: number, p: Partial<(typeof items)[number]>) => setItems(items.map((x, j) => (j === k ? { ...x, ...p } : x)));
   const save = async () => {
+    if (!date) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
     const r = await m.run(() => post<{ number: number; total: number }>('/store/sales', { items: items.map((i) => ({ productId: i.pid, qty: i.qty })), studentId: sid || undefined, paymentMethod: method, date }), (r) => `Venda nº ${r.number} registrada · ${brl(r.total)}`);
     if (r) onClose();
   };
@@ -188,7 +189,7 @@ function SaleModal({ products, initial, onClose }: { products: Product[]; initia
         <Field label="Pagamento">
           <select className="input" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>{PAYMENT_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</select>
         </Field>
-        <Field label="Data"><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="Data"><DateInput value={date} onChange={setDate} /></Field>
       </div>
       {warn && <Alert warn>Estoque insuficiente de {warn.name} ({warn.stock} em estoque).</Alert>}
       <div className="grid3" style={{ gap: 12, padding: 12, borderRadius: 10, background: 'var(--sunk)', border: '1px solid var(--bd)' }}>
