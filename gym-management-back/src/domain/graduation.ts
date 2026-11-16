@@ -125,6 +125,22 @@ export function progress(rules: DisciplineRules, rank: RankState, today: Date): 
   return { requirement, next, pct: Math.min(pt, pa), eligible, monthsLeft, classesLeft, status };
 }
 
+/** Maior grau possível numa faixa (0 em modalidade sem graus). */
+export function maxDegree(rules: DisciplineRules, levelOrder: number): number {
+  if (rules.degreesPerLevel <= 0) return 0;
+  const isLast = sorted(rules).at(-1)?.order === levelOrder;
+  return isLast ? rules.lastLevelMaxDegrees : rules.degreesPerLevel;
+}
+
+/** Graduação escolhida livremente pelo professor: null se válida, senão o motivo. */
+export function invalidRank(rules: DisciplineRules, levelOrder: number, degree: number): string | null {
+  if (!rules.levels.length) return levelOrder === 0 && degree === 0 ? null : 'Essa modalidade não tem graduação.';
+  if (!levelAt(rules, levelOrder)) return 'Nível inválido.';
+  const max = maxDegree(rules, levelOrder);
+  if (degree < 0 || degree > max) return max ? `O grau precisa ficar entre 0 e ${max}.` : 'Essa faixa não tem graus.';
+  return null;
+}
+
 /** "Azul · 2 graus" */
 export function rankLabel(rules: DisciplineRules, levelOrder: number, degree: number): string {
   const L = levelAt(rules, levelOrder);

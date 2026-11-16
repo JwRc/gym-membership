@@ -17,6 +17,7 @@ import { ClassesModule } from './modules/classes/classes.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { StoreModule } from './modules/store/store.module';
 import { DisciplinesModule } from './modules/disciplines/disciplines.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -46,6 +47,7 @@ import { HealthController } from './health.controller';
     FinanceModule,
     StoreModule,
     DisciplinesModule,
+    PlansModule,
     TenantModule,
     DashboardModule,
     JobsModule,

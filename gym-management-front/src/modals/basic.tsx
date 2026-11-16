@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { get, post } from '../api/client';
+import { get, post, put } from '../api/client';
 import type { PaymentMethod, StudentDetail } from '../api/types';
 import { Alert, Belt, Field, Modal, Seg } from '../components/ui';
 import { MONTHS, PAYMENT_OPTIONS, brl, moneyInput, parseMoney, todayISO } from '../lib/format';
@@ -131,35 +131,73 @@ export function LaunchInvoiceModal({ student, onClose }: { student: Pick<Student
   );
 }
 
+type BeltB = Parameters<typeof Belt>[0]['b'];
 interface GradOverview {
   rows: { studentId: string; name: string; belt: { label: string }; canPromote: boolean }[];
   discipline: { name: string } | null;
 }
 interface Preview {
-  from: Parameters<typeof Belt>[0]['b'];
-  to: Parameters<typeof Belt>[0]['b'] | null;
+  from: BeltB;
+  to: BeltB | null;
   instructor: string | null;
   date: string;
+  current: { levelOrder: number; degree: number; levelSince: string };
+  levels: (BeltB & { order: number; maxDegree: number })[];
 }
 
-export function GraduationModal({ disciplineId, studentId, onClose }: { disciplineId: string; studentId?: string; onClose: () => void }) {
+/** Faixa de um nível com N graus (mesma regra do servidor para o rótulo). */
+const withDegree = (l: Preview['levels'][number], degree: number): BeltB => ({
+  ...l, stripes: l.hasBar ? degree : 0, label: degree > 0 ? `${l.name} · ${degree} grau${degree > 1 ? 's' : ''}` : l.name,
+});
+
+/**
+ * Graduação do aluno numa modalidade.
+ * - "Próxima graduação": avança um passo (fluxo normal).
+ * - "Escolher graduação": qualquer faixa/grau, inclusive para baixo. Pode
+ *   registrar como graduação (entra no histórico) ou só corrigir o cadastro.
+ */
+export function GraduationModal({ disciplineId, studentId, free, onClose }: { disciplineId: string; studentId?: string; free?: boolean; onClose: () => void }) {
+  const [tab, setTab] = useState<'next' | 'free'>(free ? 'free' : 'next');
   const list = useQuery({ queryKey: ['graduation', disciplineId], queryFn: () => get<GradOverview>('/graduation', { disciplineId }) });
-  const opts = (list.data?.rows ?? []).filter((r) => r.canPromote);
+  const rows = list.data?.rows ?? [];
+  const opts = tab === 'next' ? rows.filter((r) => r.canPromote) : rows;
   const [sid, setSid] = useState(studentId ?? '');
-  const current = sid || opts[0]?.studentId || '';
+  const current = opts.some((o) => o.studentId === sid) ? sid : opts[0]?.studentId || '';
   const pv = useQuery({
     queryKey: ['grad-preview', current, disciplineId],
     queryFn: () => get<Preview>('/graduation/preview', { studentId: current, disciplineId }),
     enabled: !!current,
   });
-  const m = useMutate();
-  const confirm = async () => {
-    const name = opts.find((o) => o.studentId === current)?.name ?? 'Aluno';
-    if (await m.run(() => post<{ belt: { label: string } }>('/graduation/promote', { studentId: current, disciplineId }), (r) => `${name} graduado: ${r.belt.label}`)) onClose();
-  };
   const p = pv.data;
+  // escolha livre: começa na graduação atual do aluno
+  const [pick, setPick] = useState<{ for: string; level: number; degree: number; since: string } | null>(null);
+  const sel = pick && pick.for === current ? pick : p ? { for: current, level: p.current.levelOrder, degree: p.current.degree, since: p.current.levelSince } : null;
+  const [kind, setKind] = useState<'correction' | 'promotion'>('correction');
+  const [date, setDate] = useState(todayISO());
+  const m = useMutate();
+  const name = rows.find((o) => o.studentId === current)?.name ?? 'Aluno';
+  const lvl = p?.levels.find((l) => l.order === sel?.level);
+  const target = tab === 'next' ? p?.to ?? null : lvl && sel ? withDegree(lvl, Math.min(sel.degree, lvl.maxDegree)) : null;
+  const unchanged = tab === 'free' && !!p && !!sel && sel.level === p.current.levelOrder && sel.degree === p.current.degree && (kind === 'promotion' || sel.since === p.current.levelSince);
+
+  const confirm = async () => {
+    if (tab === 'next') {
+      if (await m.run(() => post<{ belt: { label: string } }>('/graduation/promote', { studentId: current, disciplineId }), (r) => `${name} graduado: ${r.belt.label}`)) onClose();
+      return;
+    }
+    if (!sel || !lvl) return;
+    const body = {
+      studentId: current, disciplineId, levelOrder: sel.level, degree: Math.min(sel.degree, lvl.maxDegree), mode: kind,
+      ...(kind === 'promotion' ? { date } : sel.since !== p!.current.levelSince ? { levelSince: sel.since } : {}),
+    };
+    const ok = (r: { belt: { label: string } }) => (kind === 'promotion' ? `${name} graduado: ${r.belt.label}` : `Graduação de ${name} corrigida: ${r.belt.label}`);
+    if (await m.run(() => put<{ belt: { label: string } }>('/graduation/rank', body), ok)) onClose();
+  };
+
   return (
-    <Modal title="Registrar graduação" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy || !p?.to} onClick={confirm}>Confirmar graduação</button></>}>
+    <Modal title={tab === 'next' ? 'Registrar graduação' : 'Alterar graduação'} width={tab === 'free' ? 560 : 480} onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy || !target || unchanged} onClick={confirm}>{tab === 'next' || kind === 'promotion' ? 'Confirmar graduação' : 'Salvar correção'}</button></>}>
+      <Seg value={tab} onChange={setTab} options={[{ v: 'next', label: 'Próxima graduação' }, { v: 'free', label: 'Escolher graduação' }]} />
       <Field label={`Aluno · ${list.data?.discipline?.name ?? ''}`}>
         <select className="input" value={current} onChange={(e) => setSid(e.target.value)}>
           {opts.map((o) => <option key={o.studentId} value={o.studentId}>{o.name} — {o.belt.label}</option>)}
@@ -168,13 +206,13 @@ export function GraduationModal({ disciplineId, studentId, onClose }: { discipli
       {p && (
         <>
           <div className="grid2" style={{ gap: 12 }}>
-            {[['Atual', p.from], ['Nova', p.to]].map(([k, b]) => (
-              <div key={k as string} style={{ padding: 14, borderRadius: 10, background: 'var(--sunk)', border: '1px solid var(--bd)' }}>
-                <div style={{ fontSize: 12, color: 'var(--mute)' }}>{k as string}</div>
+            {([['Atual', p.from], ['Nova', target]] as const).map(([k, b]) => (
+              <div key={k} style={{ padding: 14, borderRadius: 10, background: 'var(--sunk)', border: '1px solid var(--bd)' }}>
+                <div style={{ fontSize: 12, color: 'var(--mute)' }}>{k}</div>
                 {b ? (
                   <>
-                    <div style={{ margin: '10px 0 8px' }}><Belt b={b as Preview['from']} w={64} h={14} /></div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{(b as Preview['from']).label}</div>
+                    <div style={{ margin: '10px 0 8px' }}><Belt b={b} w={64} h={14} /></div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{b.label}</div>
                   </>
                 ) : (
                   <div style={{ fontSize: 13, marginTop: 10 }}>Graduação máxima</div>
@@ -182,12 +220,48 @@ export function GraduationModal({ disciplineId, studentId, onClose }: { discipli
               </div>
             ))}
           </div>
-          <div className="grid2" style={{ gap: 12 }}>
-            <Field label="Data"><div style={{ fontSize: 13.5 }}>{p.date}</div></Field>
-            <Field label="Professor"><div style={{ fontSize: 13.5 }}>{p.instructor ?? '—'}</div></Field>
-          </div>
+          {tab === 'next' ? (
+            <div className="grid2" style={{ gap: 12 }}>
+              <Field label="Data"><div style={{ fontSize: 13.5 }}>{p.date}</div></Field>
+              <Field label="Professor"><div style={{ fontSize: 13.5 }}>{p.instructor ?? '—'}</div></Field>
+            </div>
+          ) : sel && (
+            <>
+              <Field label="Faixa / nível">
+                <div className="row wrap gap6">
+                  {p.levels.map((l) => (
+                    <div key={l.order} className={'chip' + (l.order === sel.level ? ' on' : '')}
+                      style={l.order === sel.level ? { borderColor: 'var(--text)' } : undefined}
+                      onClick={() => setPick({ ...sel, level: l.order, degree: Math.min(sel.degree, l.maxDegree) })}>
+                      <Belt b={l} w={26} h={8} />{l.name}
+                    </div>
+                  ))}
+                </div>
+              </Field>
+              {!!lvl?.maxDegree && (
+                <Field label="Graus">
+                  <Seg value={String(Math.min(sel.degree, lvl.maxDegree))} onChange={(v) => setPick({ ...sel, degree: Number(v) })}
+                    options={Array.from({ length: lvl.maxDegree + 1 }, (_, i) => ({ v: String(i), label: String(i) }))} />
+                </Field>
+              )}
+              <Field label="Tipo" hint={kind === 'correction' ? 'Só corrige o cadastro: o histórico não muda.' : 'Entra no histórico e zera a contagem desde a última graduação.'}>
+                <Seg value={kind} onChange={setKind} options={[{ v: 'correction', label: 'Correção de cadastro' }, { v: 'promotion', label: 'Graduação' }]} />
+              </Field>
+              {kind === 'promotion' ? (
+                <div className="grid2" style={{ gap: 12 }}>
+                  <Field label="Data da graduação"><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+                  <Field label="Professor"><div style={{ fontSize: 13.5, paddingTop: 8 }}>{p.instructor ?? '—'}</div></Field>
+                </div>
+              ) : (
+                <Field label="Na faixa atual desde" hint="Usado no tempo de faixa. Deixe como está se não souber.">
+                  <input className="input" type="date" value={sel.since} onChange={(e) => setPick({ ...sel, since: e.target.value })} style={{ maxWidth: 200 }} />
+                </Field>
+              )}
+            </>
+          )}
         </>
       )}
+      {!opts.length && list.data && <div className="empty">{tab === 'next' ? 'Nenhum aluno com próxima graduação.' : 'Nenhum aluno nesta modalidade.'}</div>}
       {m.err && <Alert>{m.err}</Alert>}
     </Modal>
   );

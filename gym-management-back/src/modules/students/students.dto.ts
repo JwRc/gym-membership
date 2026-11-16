@@ -24,7 +24,8 @@ export class CreateStudentDto {
   @IsOptional() @IsString() guardianName?: string;
   @IsOptional() @IsString() guardianRelation?: string;
   @IsOptional() @IsString() guardianPhone?: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => StudentRankInput) ranks: StudentRankInput[];
+  /** Opcional quando o plano já traz modalidades. */
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => StudentRankInput) ranks?: StudentRankInput[];
   @IsOptional() @IsArray() @IsString({ each: true }) classGroupIds?: string[];
   /** LGPD: autorização do aluno/responsável para o uso dos dados (obrigatória no cadastro) */
   @Equals(true, { message: 'Confirme o consentimento do aluno (ou responsável) para o uso dos dados.' }) consent: boolean;

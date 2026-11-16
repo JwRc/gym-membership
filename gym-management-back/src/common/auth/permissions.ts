@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   'store.read',
   'store.write',
   'store.sell',
+  'plans.read',
+  'plans.write',
   'disciplines.read',
   'disciplines.write',
   'settings.read',

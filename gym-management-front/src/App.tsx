@@ -12,6 +12,7 @@ import { GraduationPage } from './pages/Graduation';
 import { FinancePage } from './pages/Finance';
 import { StorePage } from './pages/Store';
 import { DisciplinesPage } from './pages/Disciplines';
+import { PlansPage } from './pages/Plans';
 import { SettingsPage } from './pages/Settings';
 
 export function App() {
@@ -36,6 +37,7 @@ export function App() {
         <Route path="graduacao" element={<GraduationPage />} />
         <Route path="financeiro" element={<FinancePage />} />
         <Route path="loja" element={<StorePage />} />
+        <Route path="planos" element={<PlansPage />} />
         <Route path="modalidades" element={<DisciplinesPage />} />
         <Route path="configuracoes" element={<SettingsPage />} />
       </Route>

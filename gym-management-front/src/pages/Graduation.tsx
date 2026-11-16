@@ -12,12 +12,12 @@ interface Resp {
   levels: (BeltT & { n: number; order: number; count: number })[];
   rows: { studentId: string; name: string; initials: string; belt: BeltT; next: BeltT | null; time: string; canPromote: boolean }[];
 }
-const COLS = 'minmax(160px,2fr) minmax(130px,1.5fr) minmax(130px,1.5fr) 96px 86px';
+const COLS = 'minmax(160px,2fr) minmax(130px,1.5fr) minmax(130px,1.5fr) 96px 150px';
 
 export function GraduationPage() {
   const nav = useNavigate();
   const [disc, setDisc] = useState<string | undefined>();
-  const [modal, setModal] = useState<{ d: string; s?: string } | null>(null);
+  const [modal, setModal] = useState<{ d: string; s?: string; free?: boolean } | null>(null);
   const q = useQuery({ queryKey: ['graduation', disc ?? ''], queryFn: () => get<Resp>('/graduation', { disciplineId: disc }), placeholderData: keepPreviousData });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
@@ -76,7 +76,8 @@ export function GraduationPage() {
                   <div className="row gap8" style={{ fontSize: 12.5 }}><Belt b={r.belt} /><span>{r.belt.label}</span></div>
                   <div className="row gap8" style={{ fontSize: 12.5, color: 'var(--mute)' }}>{r.next ? <><Belt b={r.next} /><span>{r.next.label}</span></> : 'Graduação máxima'}</div>
                   <div style={{ fontSize: 12.5, color: 'var(--mute)' }}>{r.time}</div>
-                  <div className="right">
+                  <div className="row gap6" style={{ justifyContent: 'flex-end' }}>
+                    <button className="btn btn-sm btn-ghost" title="Escolher qualquer graduação ou corrigir o cadastro" onClick={() => setModal({ d: cur.id, s: r.studentId, free: true })}>Alterar</button>
                     {r.canPromote && <button className="btn btn-sm btn-ghost" onClick={() => setModal({ d: cur.id, s: r.studentId })}>Graduar</button>}
                   </div>
                 </div>
@@ -86,7 +87,7 @@ export function GraduationPage() {
           </div>
         </>
       )}
-      {modal && <GraduationModal disciplineId={modal.d} studentId={modal.s} onClose={() => setModal(null)} />}
+      {modal && <GraduationModal disciplineId={modal.d} studentId={modal.s} free={modal.free} onClose={() => setModal(null)} />}
     </div>
   );
 }

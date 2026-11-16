@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get, patch, post } from '../api/client';
-import type { ClassGroup, DisciplineT, StudentDetail, StudentStatus } from '../api/types';
+import type { ClassGroup, DisciplineT, Plan, StudentDetail, StudentStatus } from '../api/types';
 import { Alert, Field, Modal } from '../components/ui';
 import { moneyInput, parseMoney } from '../lib/format';
 import { soft } from '../lib/theme';
@@ -10,8 +10,9 @@ import { useMutate } from './useMutate';
 
 interface TenantT {
   dueDays: number[];
-  plans: { id: string; name: string; price: number }[];
 }
+type Saved = { id: string; warnings?: string[] };
+const withWarnings = (msg: string) => (r: Saved) => [msg, ...(r.warnings ?? [])].join(' · ');
 
 export function StudentModal({ student, onClose }: { student?: StudentDetail; onClose: () => void }) {
   const nav = useNavigate();
@@ -19,6 +20,9 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
   const disc = useQuery({ queryKey: ['disciplines'], queryFn: () => get<{ disciplines: DisciplineT[] }>('/disciplines') });
   const classes = useQuery({ queryKey: ['classes'], queryFn: () => get<{ classes: ClassGroup[] }>('/classes') });
   const tenant = useQuery({ queryKey: ['tenant'], queryFn: () => get<TenantT>('/tenant') });
+  const plansQ = useQuery({ queryKey: ['plans'], queryFn: () => get<{ plans: Plan[] }>('/plans') });
+  // arquivado só aparece se for o plano atual do aluno
+  const plans = (plansQ.data?.plans ?? []).filter((p) => !p.archived || p.id === student?.plan?.id);
 
   const [f, setF] = useState({
     name: student?.name ?? '',
@@ -44,6 +48,26 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
 
   const discs = disc.data?.disciplines ?? [];
   const chosen = new Set([...existing, ...Object.keys(ranks)]);
+  const plan = plans.find((p) => p.id === f.planId);
+
+  /** Escolher plano: mensalidade, modalidades e turmas do plano (o servidor aplica o mesmo ao salvar). */
+  const choosePlan = (id: string) => {
+    const prev = plans.find((p) => p.id === f.planId);
+    const next = plans.find((p) => p.id === id);
+    const nextDisc = new Set(next?.disciplines.map((d) => d.id));
+    const nextClasses = new Set(next?.classGroups.map((c) => c.id));
+    const r = { ...ranks };
+    prev?.disciplines.forEach((d) => { if (!nextDisc.has(d.id)) delete r[d.id]; });
+    next?.disciplines.forEach((d) => { if (!existing.has(d.id) && !(d.id in r)) r[d.id] = 0; });
+    setRanks(r);
+    const all = classes.data?.classes ?? [];
+    const enrolled = new Set(student?.classes.map((c) => c.id));
+    const keep = classIds.filter((c) => !prev?.classGroups.some((x) => x.id === c) || nextClasses.has(c));
+    const add = [...nextClasses].filter((c) => !keep.includes(c) && (enrolled.has(c) || (all.find((g) => g.id === c)?.count ?? 0) < (all.find((g) => g.id === c)?.capacity ?? Infinity)));
+    setClassIds([...keep, ...add]);
+    set({ planId: id, ...(next ? { fee: moneyInput(next.price) } : {}) });
+  };
+
   const minor = f.birthDate && new Date().getFullYear() - Number(f.birthDate.slice(0, 4)) < 18;
 
   const save = async () => {
@@ -51,19 +75,19 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
     if (!(monthlyFee >= 0)) return m.setErr('Informe a mensalidade.');
     const body = {
       name: f.name, gender: f.gender || undefined, birthDate: f.birthDate, email: f.email, phone: f.phone || undefined,
-      monthlyFee, dueDay: Number(f.dueDay), planId: f.planId || undefined, medicalNotes: f.medicalNotes || undefined,
+      monthlyFee, dueDay: Number(f.dueDay), planId: editing ? f.planId || null : f.planId || undefined, medicalNotes: f.medicalNotes || undefined,
       guardianName: f.guardianName || undefined, guardianRelation: f.guardianRelation || undefined, guardianPhone: f.guardianPhone || undefined,
       classGroupIds: classIds,
       consent: f.consent,
     };
     const newRanks = Object.entries(ranks).map(([disciplineId, levelOrder]) => ({ disciplineId, levelOrder }));
     if (editing) {
-      const r = await m.run(() => patch(`/students/${student!.id}`, { ...body, status: f.status, addRanks: newRanks }), 'Cadastro atualizado');
+      const r = await m.run(() => patch<Saved>(`/students/${student!.id}`, { ...body, status: f.status, addRanks: newRanks }), withWarnings('Cadastro atualizado'));
       if (r) onClose();
     } else {
       if (!f.birthDate) return m.setErr('Informe a data de nascimento.');
       if (!f.consent) return m.setErr('Confirme o consentimento do aluno (ou responsável) para o uso dos dados.');
-      const r = await m.run(() => post<{ id: string }>('/students', { ...body, ranks: newRanks }), `${f.name} cadastrado`);
+      const r = await m.run(() => post<Saved>('/students', { ...body, ranks: newRanks }), withWarnings(`${f.name} cadastrado`));
       if (r) {
         onClose();
         nav(`/alunos/${r.id}`);
@@ -86,6 +110,21 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
         <Field label="Telefone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="(11) 90000-0000" /></Field>
+      </div>
+
+      <div className="grid3" style={{ gap: 12 }}>
+        <Field label="Plano" hint={plan && (plan.disciplines.length || plan.classGroups.length) ? `Inclui ${[...plan.disciplines, ...plan.classGroups].map((x) => x.name).join(', ')}` : undefined}>
+          <select className="input" value={f.planId} onChange={(e) => choosePlan(e.target.value)}>
+            <option value="">Sem plano</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? ' (arquivado)' : ''}</option>)}
+          </select>
+        </Field>
+        <Field label="Mensalidade (R$)"><input className="input num" value={f.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="0,00" /></Field>
+        <Field label="Dia de vencimento">
+          <select className="input" value={f.dueDay} onChange={(e) => set({ dueDay: Number(e.target.value) })}>
+            {(tenant.data?.dueDays ?? [1, 5, 10, 15, 20, 30]).map((d) => <option key={d} value={d}>Dia {String(d).padStart(2, '0')}</option>)}
+          </select>
+        </Field>
       </div>
 
       <Field label={editing ? 'Modalidades (adicionar)' : 'Modalidades e graduação inicial'}>
@@ -135,20 +174,6 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
         </div>
       </Field>
 
-      <div className="grid3" style={{ gap: 12 }}>
-        <Field label="Plano">
-          <select className="input" value={f.planId} onChange={(e) => { const p = tenant.data?.plans.find((x) => x.id === e.target.value); set({ planId: e.target.value, ...(p ? { fee: moneyInput(p.price) } : {}) }); }}>
-            <option value="">Sem plano</option>
-            {tenant.data?.plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Mensalidade (R$)"><input className="input num" value={f.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="0,00" /></Field>
-        <Field label="Dia de vencimento">
-          <select className="input" value={f.dueDay} onChange={(e) => set({ dueDay: Number(e.target.value) })}>
-            {(tenant.data?.dueDays ?? [1, 5, 10, 15, 20, 30]).map((d) => <option key={d} value={d}>Dia {String(d).padStart(2, '0')}</option>)}
-          </select>
-        </Field>
-      </div>
       {editing && (
         <Field label="Status">
           <select className="input" value={f.status} onChange={(e) => set({ status: e.target.value as StudentStatus })}>

@@ -5,10 +5,10 @@ import { AuditService } from '../../common/audit/audit.module';
 import { AuthUser } from '../../common/auth/auth.types';
 import { CacheService } from '../../common/cache/cache.module';
 import { brDate, dateOnly, diffDays, initials, iso, num, today, ymd } from '../../common/util';
-import { promotionTitle } from '../../domain/graduation';
-import { toRules } from '../../domain/rules-mapper';
 import { slotSummary } from '../../domain/schedule';
 import { AcademyQueries, duration } from '../shared/academy.queries';
+import { addRank } from '../shared/ranks';
+import { PlansService } from '../plans/plans.module';
 import { InvoicesService } from './invoices.service';
 import { CreateStudentDto, ListStudentsQuery, UpdateStudentDto } from './students.dto';
 
@@ -22,6 +22,7 @@ export class StudentsService {
     private readonly cache: CacheService,
     private readonly invoices: InvoicesService,
     private readonly audit: AuditService,
+    private readonly plans: PlansService,
   ) {}
 
   async list(tenantId: string, f: ListStudentsQuery) {
@@ -94,6 +95,7 @@ export class StudentsService {
               .map((p) => {
                 const lv = d.levels.find((l) => l.order === p.levelOrder);
                 return {
+                  id: p.id,
                   title: p.title,
                   date: brDate(p.date),
                   color: lv?.color ?? '#888',
@@ -116,8 +118,12 @@ export class StudentsService {
 
   async create(tenantId: string, dto: CreateStudentDto) {
     const disc = await this.q.disciplines(tenantId);
-    if (!dto.ranks.length) throw new BadRequestException('Escolha pelo menos uma modalidade.');
-    for (const r of dto.ranks) {
+    const ranks = dto.ranks ?? [];
+    const plan = dto.planId ? await this.plans.assignable(tenantId, dto.planId) : null;
+    const planDisc = plan?.disciplines.filter((x) => disc.has(x.disciplineId)) ?? [];
+    if (!ranks.length && !planDisc.length) throw new BadRequestException('Escolha pelo menos uma modalidade.');
+    await this.checkClassGroups(tenantId, dto.classGroupIds);
+    for (const r of ranks) {
       const d = disc.get(r.disciplineId);
       if (!d) throw new BadRequestException('Modalidade inválida.');
       if (d.levels.length && !d.levels.some((l) => l.order === r.levelOrder)) throw new BadRequestException(`Nível inválido em ${d.name}.`);
@@ -125,7 +131,7 @@ export class StudentsService {
     const start = dto.startDate ? dateOnly(dto.startDate) : today();
     const email = dto.email.trim().toLowerCase();
     try {
-      const s = await this.prisma.$transaction(async (tx) => {
+      const { s, warnings } = await this.prisma.$transaction(async (tx) => {
         const s = await tx.student.create({
           data: {
             tenantId, name: dto.name.trim(), gender: dto.gender, birthDate: dateOnly(dto.birthDate), email, phone: dto.phone,
@@ -135,10 +141,12 @@ export class StudentsService {
             consentAt: new Date(),
           },
         });
-        for (const r of dto.ranks) await this.addRank(tx, s.id, disc.get(r.disciplineId)!, r.levelOrder, r.degree ?? 0, start);
-        if (dto.classGroupIds?.length)
-          await tx.enrollment.createMany({ data: dto.classGroupIds.map((classGroupId) => ({ studentId: s.id, classGroupId })), skipDuplicates: true });
-        return s;
+        for (const r of ranks) await addRank(tx, s.id, disc.get(r.disciplineId)!, r.levelOrder, r.degree ?? 0, start);
+        // modalidades e turmas do plano (turma lotada vira aviso)
+        const warnings = await this.plans.applyToStudent(tx, {
+          studentId: s.id, planId: plan?.id ?? null, prevPlanId: null, base: dto.classGroupIds ?? [], enrolled: [], disc, date: start,
+        });
+        return { s, warnings };
       });
       // Primeira mensalidade: mês corrente, nunca com vencimento no passado.
       const t = today();
@@ -149,7 +157,7 @@ export class StudentsService {
           dueDate: due < t ? t : due, amount: dto.monthlyFee,
         },
       });
-      return { id: s.id };
+      return { id: s.id, warnings };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException('Já existe um aluno com esse e-mail.');
       throw e;
@@ -159,9 +167,15 @@ export class StudentsService {
   async update(tenantId: string, id: string, dto: UpdateStudentDto) {
     await this.q.studentOr404(tenantId, id);
     const disc = await this.q.disciplines(tenantId);
-    const current = await this.prisma.student.findUniqueOrThrow({ where: { id }, select: { consentAt: true } });
+    const current = await this.prisma.student.findUniqueOrThrow({
+      where: { id }, select: { consentAt: true, planId: true, enrollments: { select: { classGroupId: true } } },
+    });
     const { classGroupIds, addRanks, birthDate, email, planId, consent, ...rest } = dto;
-    await this.prisma.$transaction(async (tx) => {
+    const nextPlanId = planId === undefined ? current.planId : planId || null;
+    const planChanged = nextPlanId !== current.planId;
+    if (planChanged && nextPlanId) await this.plans.assignable(tenantId, nextPlanId);
+    await this.checkClassGroups(tenantId, classGroupIds);
+    return this.prisma.$transaction(async (tx) => {
       await tx.student.update({
         where: { id },
         data: {
@@ -174,18 +188,33 @@ export class StudentsService {
           ...(consent === false ? { consentAt: null } : {}),
         },
       });
-      if (classGroupIds) {
-        await tx.enrollment.deleteMany({ where: { studentId: id, classGroupId: { notIn: classGroupIds } } });
-        await tx.enrollment.createMany({ data: classGroupIds.map((classGroupId) => ({ studentId: id, classGroupId })), skipDuplicates: true });
-      }
       for (const r of addRanks ?? []) {
         const d = disc.get(r.disciplineId);
         if (!d) throw new BadRequestException('Modalidade inválida.');
         const has = await tx.studentRank.findUnique({ where: { studentId_disciplineId: { studentId: id, disciplineId: d.id } } });
-        if (!has) await this.addRank(tx, id, d, r.levelOrder, r.degree ?? 0, today());
+        if (!has) await addRank(tx, id, d, r.levelOrder, r.degree ?? 0, today());
       }
+      let warnings: string[] = [];
+      if (planChanged) {
+        // entra nas modalidades/turmas do plano novo e sai das turmas do antigo
+        const enrolled = current.enrollments.map((e) => e.classGroupId);
+        warnings = await this.plans.applyToStudent(tx, {
+          studentId: id, planId: nextPlanId, prevPlanId: current.planId, base: classGroupIds ?? enrolled, enrolled, disc, date: today(),
+        });
+      } else if (classGroupIds) {
+        await tx.enrollment.deleteMany({ where: { studentId: id, classGroupId: { notIn: classGroupIds } } });
+        await tx.enrollment.createMany({ data: classGroupIds.map((classGroupId) => ({ studentId: id, classGroupId })), skipDuplicates: true });
+      }
+      return { id, warnings };
     });
-    return { id };
+  }
+
+  /** Turmas enviadas pelo formulário precisam ser da academia. */
+  private async checkClassGroups(tenantId: string, ids?: string[]) {
+    if (!ids?.length) return;
+    const unique = [...new Set(ids)];
+    const n = await this.prisma.classGroup.count({ where: { id: { in: unique }, tenantId } });
+    if (n !== unique.length) throw new BadRequestException('Turma inválida.');
   }
 
   /** LGPD: todos os dados do aluno, para entregar a ele (portabilidade/acesso). */
@@ -252,13 +281,5 @@ export class StudentsService {
     });
     await this.audit.record({ tenantId: user.tenantId, userId: user.sub, action: 'students.anonymize', entity: 'students', entityId: id, meta: result });
     return { ok: true, ...result };
-  }
-
-  private async addRank(tx: Prisma.TransactionClient, studentId: string, d: Parameters<typeof toRules>[0], levelOrder: number, degree: number, date: Date) {
-    await tx.studentRank.create({ data: { studentId, disciplineId: d.id, levelOrder, degree, levelSince: date, lastPromotionAt: date } });
-    if (d.levels.length)
-      await tx.promotion.create({
-        data: { studentId, disciplineId: d.id, levelOrder, degree, date, title: promotionTitle(toRules(d), levelOrder, degree, true) },
-      });
   }
 }

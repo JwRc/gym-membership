@@ -1,9 +1,21 @@
+import { useState } from 'react';
 import type { StudentDetail } from '../api/types';
 import { beltBg } from '../lib/theme';
-import { Belt } from './ui';
+import { Belt, ICONS, Icon } from './ui';
 
-/** Cartão "Graduação" (ficha do aluno e portal). */
-export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onGrad?: (disciplineId: string) => void }) {
+/**
+ * Cartão "Graduação" (ficha do aluno e portal). Sem os handlers (portal) fica só leitura.
+ * Exclusões pedem um segundo clique para confirmar.
+ */
+export function RankCard({ ranks, onGrad, onEdit, onDeleteHistory, onRemove }: {
+  ranks: StudentDetail['ranks'];
+  onGrad?: (disciplineId: string) => void;
+  onEdit?: (disciplineId: string) => void;
+  onDeleteHistory?: (promotionId: string) => void;
+  onRemove?: (disciplineId: string) => void;
+}) {
+  const [armed, setArmed] = useState<string | null>(null);
+  const twice = (key: string, fn: () => void) => (armed === key ? (setArmed(null), fn()) : setArmed(key));
   return (
     <div className="card">
       <div className="card-h"><div className="card-t">Graduação</div></div>
@@ -13,7 +25,17 @@ export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onG
             <span className="row gap8" style={{ fontSize: 12.5, color: 'var(--mute)', fontWeight: 500 }}>
               <span className="sq" style={{ background: g.discipline.color }} />{g.discipline.name}
             </span>
-            {g.next && onGrad && <button className="btn btn-sm" onClick={() => onGrad(g.discipline.id)}>Registrar graduação</button>}
+            <div className="row gap6">
+              {onRemove && ranks.length > 1 && (
+                <button className="btn btn-sm btn-ghost" style={armed === `rm:${g.discipline.id}` ? { color: 'var(--bad)' } : undefined}
+                  title="Tirar o aluno desta modalidade (graduação, histórico e turmas dela)"
+                  onClick={() => twice(`rm:${g.discipline.id}`, () => onRemove(g.discipline.id))}>
+                  {armed === `rm:${g.discipline.id}` ? 'Confirmar remoção' : 'Remover'}
+                </button>
+              )}
+              {onEdit && <button className="btn btn-sm btn-ghost" onClick={() => onEdit(g.discipline.id)}>Alterar</button>}
+              {g.next && onGrad && <button className="btn btn-sm" onClick={() => onGrad(g.discipline.id)}>Registrar graduação</button>}
+            </div>
           </div>
           <div className="row gap16" style={{ marginTop: 12 }}>
             <Belt b={g.belt} w={96} h={20} />
@@ -33,7 +55,16 @@ export function RankCard({ ranks, onGrad }: { ranks: StudentDetail['ranks']; onG
                   </div>
                   <div className="row between grow" style={{ paddingBottom: 12 }}>
                     <div><div style={{ fontSize: 13 }}>{h.title}</div>{h.instructor && <div style={{ fontSize: 11.5, color: 'var(--mute2)', marginTop: 1 }}>{h.instructor}</div>}</div>
-                    <div className="mono" style={{ fontSize: 12, color: 'var(--mute)' }}>{h.date}</div>
+                    <div className="row gap6" style={{ alignItems: 'flex-start' }}>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--mute)' }}>{h.date}</span>
+                      {onDeleteHistory && h.id && (
+                        <button className="icon-btn" style={{ width: 20, height: 20, ...(armed === h.id ? { color: 'var(--bad)' } : {}) }}
+                          title={armed === h.id ? 'Clique de novo para apagar' : 'Apagar do histórico (lançado por engano)'}
+                          onClick={() => twice(h.id!, () => onDeleteHistory(h.id!))}>
+                          <Icon d={armed === h.id ? ICONS.check : ICONS.trash} size={11} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
