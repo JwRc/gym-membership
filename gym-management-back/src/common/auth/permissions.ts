@@ -12,6 +12,8 @@ export const PERMISSIONS = [
   'students.import',
   'students.export',
   'students.delete',
+  'families.read',
+  'families.write',
   'invoices.write',
   'graduation.read',
   'graduation.write',

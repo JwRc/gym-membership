@@ -14,6 +14,8 @@ import { StorePage } from './pages/Store';
 import { DisciplinesPage } from './pages/Disciplines';
 import { PlansPage } from './pages/Plans';
 import { SettingsPage } from './pages/Settings';
+import { FamiliesPage } from './pages/Families';
+import { FamilyDetailPage } from './pages/FamilyDetail';
 
 export function App() {
   const { me, booting } = useApp();
@@ -33,6 +35,8 @@ export function App() {
         <Route path="alunos" element={<StudentsPage />} />
         <Route path="alunos/:id" element={<StudentProfilePage />} />
         <Route path="alunos/:id/financeiro" element={<StudentFinancePage />} />
+        <Route path="familias" element={<FamiliesPage />} />
+        <Route path="familias/:id" element={<FamilyDetailPage />} />
         <Route path="turmas" element={<ClassesPage />} />
         <Route path="graduacao" element={<GraduationPage />} />
         <Route path="financeiro" element={<FinancePage />} />

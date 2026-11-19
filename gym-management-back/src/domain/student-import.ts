@@ -51,7 +51,8 @@ export interface ImportContext {
   today: string; // YYYY-MM-DD
   dueDays: number[];
   plans: { id: string; name: string; price: number }[];
-  existing: { name: string; email: string; birthDate: string }[];
+  /** alunos já cadastrados (membros de família podem não ter e-mail) */
+  existing: { name: string; email: string | null; birthDate: string }[];
 }
 
 export interface ImportedStudent {
@@ -202,7 +203,7 @@ export function analyzeSheet(sheet: RawSheet, ctx: ImportContext): ImportAnalysi
   if (errors.some((e) => e.row === null)) return { total: 0, valid: 0, errors, students: [] };
 
   const plans = new Map(ctx.plans.map((p) => [nameKey(p.name), p]));
-  const byEmail = new Map(ctx.existing.map((e) => [e.email.toLowerCase(), e.name]));
+  const byEmail = new Map(ctx.existing.filter((e) => e.email).map((e) => [e.email!.toLowerCase(), e.name]));
   const byNameBirth = new Map(ctx.existing.map((e) => [`${nameKey(e.name)}|${e.birthDate}`, e.name]));
   const seenEmail = new Map<string, number>();
   const seenNameBirth = new Map<string, number>();

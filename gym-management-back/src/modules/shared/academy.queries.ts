@@ -73,6 +73,7 @@ export class AcademyQueries {
         where: { tenantId, anonymizedAt: null },
         include: {
           ranks: true,
+          family: { select: { id: true, name: true } },
           invoices: { where: { status: { in: ['PENDING', 'OVERDUE'] } }, select: { status: true, dueDate: true, amount: true, id: true } },
         },
         orderBy: { name: 'asc' },
@@ -95,6 +96,7 @@ export class AcademyQueries {
         finance: fin,
         monthlyFee: num(s.monthlyFee),
         dueDay: s.dueDay,
+        family: s.family,
         disciplines: ranks.map((r) => r.discipline),
         ranks,
         openInvoices: s.invoices.map((i) => ({ id: i.id, dueDate: iso(i.dueDate)!, amount: num(i.amount), status: i.status })),

@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get, patch, post } from '../api/client';
-import { Alert, ErrorBox, Field, Loading, Modal } from '../components/ui';
+import type { DiscountKind, DiscountRule, DiscountValueType } from '../api/types';
+import { Alert, ErrorBox, Field, Loading, Modal, Seg } from '../components/ui';
 import { useMutate } from '../modals/useMutate';
-import { brl } from '../lib/format';
+import { brl, moneyInput, parseMoney } from '../lib/format';
+import { KIND_OPTIONS, ruleText } from '../lib/family';
 
 interface TenantT {
   name: string; code: string; cnpj: string | null; phone: string | null; address: string | null;
   dueDays: number[]; lateToleranceDays: number; autoGenerateInvoices: boolean;
+  familyDiscount: DiscountRule;
   plans: { id: string; name: string; description: string | null; price: number }[];
   instructors: { id: string; name: string }[];
   disciplines: { id: string; name: string; color: string; system: string; instructor: string | null; students: number }[];
@@ -64,6 +67,7 @@ export function SettingsPage() {
               <div className={'toggle' + (t.autoGenerateInvoices ? ' on' : '')} onClick={() => update({ autoGenerateInvoices: !t.autoGenerateInvoices })}><div /></div>
             ), 'Cria os lançamentos do mês seguinte a partir do dia 25')}
           </div>
+          <FamilyDiscountCard rule={t.familyDiscount} />
         </div>
         <div className="col gap16">
           <div className="card">
@@ -114,5 +118,47 @@ function AcademyModal({ t, onClose }: { t: TenantT; onClose: () => void }) {
       <Field label="Endereço"><input className="input" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
       {m.err && <Alert>{m.err}</Alert>}
     </Modal>
+  );
+}
+
+/** Desconto família padrão da academia (cada família pode ter o seu). */
+function FamilyDiscountCard({ rule }: { rule: DiscountRule }) {
+  const [kind, setKind] = useState<DiscountKind>(rule.kind);
+  const [vtype, setVtype] = useState<DiscountValueType>(rule.valueType);
+  const [value, setValue] = useState(rule.kind === 'NONE' ? '' : rule.valueType === 'PERCENT' ? String(rule.value).replace('.', ',') : moneyInput(rule.value));
+  const m = useMutate();
+  const dirty = kind !== rule.kind || (kind !== 'NONE' && (vtype !== rule.valueType || parseMoney(value) !== rule.value));
+  const save = () => {
+    if (kind === 'NONE') return m.run(() => patch('/tenant', { familyDiscountKind: 'NONE' }), 'Desconto família desligado');
+    const v = parseMoney(value);
+    if (!(v > 0)) return m.setErr('Informe o valor do desconto.');
+    if (vtype === 'PERCENT' && v > 100) return m.setErr('O desconto percentual não pode passar de 100%.');
+    return m.run(() => patch('/tenant', { familyDiscountKind: kind, familyDiscountType: vtype, familyDiscountValue: v }), 'Desconto família salvo');
+  };
+  return (
+    <div className="card">
+      <div className="card-h"><div className="card-t">Desconto família</div></div>
+      <div className="col gap12" style={{ padding: '14px 18px' }}>
+        <div style={{ fontSize: 12.5, color: 'var(--mute2)' }}>
+          Padrão para todas as famílias; cada família pode ter um desconto próprio ou nenhum. Atual: <span style={{ color: 'var(--text2)' }}>{ruleText(rule)}</span>
+        </div>
+        <Seg value={kind} onChange={setKind} options={[{ v: 'NONE', label: 'Sem desconto' }, ...KIND_OPTIONS.map((o) => ({ v: o.v, label: o.label }))]} />
+        {kind !== 'NONE' && (
+          <>
+            <div style={{ fontSize: 12.5, color: 'var(--mute2)' }}>{KIND_OPTIONS.find((o) => o.v === kind)?.hint}</div>
+            <div className="row gap12">
+              <Seg value={vtype} onChange={setVtype} options={[{ v: 'PERCENT', label: '%' }, { v: 'FIXED', label: 'R$' }]} />
+              <input className="input num" style={{ width: 140 }} value={value} onChange={(e) => setValue(e.target.value)} placeholder={vtype === 'PERCENT' ? '10' : '0,00'} />
+            </div>
+          </>
+        )}
+        {kind === 'FAMILY_FIXED' && <Alert warn>Só vale para famílias com cobrança consolidada; as separadas que usam o padrão ficam sem desconto.</Alert>}
+        {m.err && <Alert>{m.err}</Alert>}
+        <div className="row between gap12">
+          <span style={{ fontSize: 12, color: 'var(--mute2)' }}>Vale para as próximas mensalidades geradas (o mês seguinte é gerado a partir do dia 25).</span>
+          <button className="btn btn-sm btn-primary" disabled={!dirty || m.busy} onClick={save}>Salvar</button>
+        </div>
+      </div>
+    </div>
   );
 }

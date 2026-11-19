@@ -36,13 +36,19 @@ export interface RankView {
 }
 
 export interface StudentRow {
-  id: string; name: string; initials: string; email: string; phone: string | null; age: number; birthDate: string;
+  id: string; name: string; initials: string; email: string | null; phone: string | null; age: number; birthDate: string;
   status: StudentStatus; finance: Finance; monthlyFee: number; dueDay: number; disciplines: Tag[]; ranks: RankView[];
+  family: { id: string; name: string } | null;
 }
 
+export type InvoiceState = 'paid' | 'overdue' | 'grace' | 'today' | 'upcoming' | 'exempt';
 export interface InvoiceRow {
   id: string; ref: string; year: number; month: number; dueDate: string; amount: number; paidAt: string | null; method: string | null;
-  state: 'paid' | 'overdue' | 'grace' | 'today' | 'upcoming' | 'exempt'; label: string; manual: boolean; canPay: boolean;
+  state: InvoiceState; label: string; manual: boolean; canPay: boolean;
+  /** valor cheio e desconto família (gross = amount + discount) */
+  gross: number; discount: number; discountNote: string | null;
+  /** faz parte da cobrança consolidada da família: paga-se pela família */
+  charge: { id: string; familyId: string; familyName: string } | null;
 }
 export interface StudentInvoices {
   summary: { paidYear: number; paidYearCount: number; open: number; openCount: number; next: { dueDate: string; amount: number } | null; monthlyFee: number; dueDay: number };
@@ -51,8 +57,9 @@ export interface StudentInvoices {
 
 export interface StudentDetail {
   id: string; name: string; initials: string; gender: 'M' | 'F' | null; status: StudentStatus; finance: Finance;
-  email: string; phone: string | null; birthDate: string; age: number; startDate: string; since: string;
+  email: string | null; phone: string | null; birthDate: string; age: number; startDate: string; since: string;
   monthlyFee: number; dueDay: number; plan: { id: string; name: string } | null; hasAccess: boolean;
+  family: { id: string; name: string; guardianName: string; isGuardian: boolean; billingMode: BillingMode; dueDay: number | null } | null;
   medicalNotes: string | null; guardian: { name: string; relation: string | null; phone: string | null } | null;
   /** LGPD: quando o aluno/responsável autorizou o uso dos dados */
   consentAt: string | null;
@@ -80,4 +87,48 @@ export interface Level { order?: number; name: string; color: string; color2?: s
 export interface DisciplineT {
   id: string; name: string; color: string; system: string; origin: { id: string; name: string } | null; customized: boolean; customizedAt: string | null;
   degreesPerLevel: number; levels: Level[]; instructor: { id: string; name: string } | null; monthlyPrice: number; students: number;
+}
+
+// ─── Famílias ───
+
+export type BillingMode = 'SEPARATE' | 'CONSOLIDATED';
+export type DiscountKind = 'NONE' | 'STATIC' | 'PROGRESSIVE' | 'FAMILY_FIXED';
+export type DiscountValueType = 'FIXED' | 'PERCENT';
+export type DiscountOverride = 'INHERIT' | 'CUSTOM' | 'NONE';
+export interface DiscountRule { kind: DiscountKind; valueType: DiscountValueType; value: number }
+
+export interface FamilyRow {
+  id: string; name: string;
+  guardian: { name: string; email: string; phone: string | null; trains: boolean };
+  members: { id: string; name: string; status: StudentStatus }[];
+  activeMembers: number; billingMode: BillingMode; dueDay: number | null; discountOverride: DiscountOverride;
+  rule: DiscountRule; finance: Finance; openAmount: number;
+}
+
+export interface FamilyMember {
+  id: string; name: string; initials: string; email: string | null; phone: string | null; age: number; status: StudentStatus;
+  dueDay: number; isGuardian: boolean; monthlyFee: number;
+  next: { amount: number; discount: number; exempt: boolean; position: number | null; note: string | null } | null;
+}
+export interface FamilyDetail {
+  id: string; name: string;
+  guardian: { id: string; name: string; email: string; phone: string | null; cpf: string | null; relation: string | null; studentId: string | null };
+  billingMode: BillingMode; dueDay: number | null; discountOverride: DiscountOverride;
+  customRule: DiscountRule | null; tenantRule: DiscountRule; rule: DiscountRule; warning: string | null;
+  members: FamilyMember[];
+  totals: { gross: number; discount: number; amount: number };
+}
+
+export interface FamilyInvoice {
+  id: string; ref: string; student: { id: string; name: string }; dueDate: string; amount: number; discount: number; gross: number;
+  discountNote: string | null; paidAt: string | null; method: string | null; state: InvoiceState; label: string; canPay: boolean;
+}
+export interface FamilyChargeRow {
+  id: string; ref: string; year: number; month: number; dueDate: string; total: number; discount: number; paidAt: string | null;
+  method: string | null; state: InvoiceState; label: string; canPay: boolean; invoices: FamilyInvoice[];
+}
+export interface FamilyFinance {
+  summary: { open: number; openCount: number; paidYear: number; discountYear: number };
+  charges: FamilyChargeRow[];
+  invoices: FamilyInvoice[];
 }

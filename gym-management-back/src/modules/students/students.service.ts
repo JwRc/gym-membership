@@ -4,7 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { AuditService } from '../../common/audit/audit.module';
 import { AuthUser } from '../../common/auth/auth.types';
 import { CacheService } from '../../common/cache/cache.module';
-import { brDate, dateOnly, diffDays, initials, iso, num, today, ymd } from '../../common/util';
+import { brDate, dateOnly, diffDays, initials, iso, num, today } from '../../common/util';
 import { slotSummary } from '../../domain/schedule';
 import { AcademyQueries, duration } from '../shared/academy.queries';
 import { addRank } from '../shared/ranks';
@@ -54,6 +54,7 @@ export class StudentsService {
       include: {
         plan: true,
         user: { select: { id: true } },
+        family: { select: { id: true, name: true, billingMode: true, dueDay: true, guardian: { select: { name: true, studentId: true } } } },
         ranks: true,
         promotions: { orderBy: { date: 'desc' } },
         enrollments: { include: { classGroup: { include: { slots: true, instructor: true, discipline: true } } } },
@@ -81,6 +82,16 @@ export class StudentsService {
       dueDay: s.dueDay,
       plan: s.plan ? { id: s.plan.id, name: s.plan.name } : null,
       hasAccess: !!s.user,
+      family: s.family
+        ? {
+            id: s.family.id,
+            name: s.family.name,
+            guardianName: s.family.guardian.name,
+            isGuardian: s.family.guardian.studentId === s.id,
+            billingMode: s.family.billingMode,
+            dueDay: s.family.billingMode === 'CONSOLIDATED' ? s.family.dueDay : null,
+          }
+        : null,
       medicalNotes: s.medicalNotes,
       consentAt: s.consentAt?.toISOString() ?? null,
       guardian: s.guardianName ? { name: s.guardianName, relation: s.guardianRelation, phone: s.guardianPhone } : null,
@@ -129,7 +140,11 @@ export class StudentsService {
       if (d.levels.length && !d.levels.some((l) => l.order === r.levelOrder)) throw new BadRequestException(`Nível inválido em ${d.name}.`);
     }
     const start = dto.startDate ? dateOnly(dto.startDate) : today();
-    const email = dto.email.trim().toLowerCase();
+    const email = dto.email?.trim().toLowerCase() || null;
+    if (dto.familyId) {
+      const fam = await this.prisma.family.count({ where: { id: dto.familyId, tenantId } });
+      if (!fam) throw new BadRequestException('Família inválida.');
+    } else if (!email) throw new BadRequestException('Informe o e-mail do aluno.');
     try {
       const { s, warnings } = await this.prisma.$transaction(async (tx) => {
         const s = await tx.student.create({
@@ -138,7 +153,7 @@ export class StudentsService {
             monthlyFee: dto.monthlyFee, dueDay: dto.dueDay, startDate: start, planId: dto.planId || null,
             medicalNotes: dto.medicalNotes || null, guardianName: dto.guardianName || null,
             guardianRelation: dto.guardianRelation || null, guardianPhone: dto.guardianPhone || null,
-            consentAt: new Date(),
+            familyId: dto.familyId || null, consentAt: new Date(),
           },
         });
         for (const r of ranks) await addRank(tx, s.id, disc.get(r.disciplineId)!, r.levelOrder, r.degree ?? 0, start);
@@ -148,15 +163,7 @@ export class StudentsService {
         });
         return { s, warnings };
       });
-      // Primeira mensalidade: mês corrente, nunca com vencimento no passado.
-      const t = today();
-      const due = ymd(t.getUTCFullYear(), t.getUTCMonth() + 1, dto.dueDay);
-      await this.prisma.invoice.create({
-        data: {
-          tenantId, studentId: s.id, year: t.getUTCFullYear(), month: t.getUTCMonth() + 1,
-          dueDate: due < t ? t : due, amount: dto.monthlyFee,
-        },
-      });
+      await this.invoices.firstInvoice(tenantId, s.id);
       return { id: s.id, warnings };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException('Já existe um aluno com esse e-mail.');
@@ -168,9 +175,11 @@ export class StudentsService {
     await this.q.studentOr404(tenantId, id);
     const disc = await this.q.disciplines(tenantId);
     const current = await this.prisma.student.findUniqueOrThrow({
-      where: { id }, select: { consentAt: true, planId: true, enrollments: { select: { classGroupId: true } } },
+      where: { id }, select: { consentAt: true, planId: true, familyId: true, enrollments: { select: { classGroupId: true } } },
     });
-    const { classGroupIds, addRanks, birthDate, email, planId, consent, ...rest } = dto;
+    const nextEmail = dto.email === undefined ? undefined : dto.email?.trim().toLowerCase() || null;
+    if (nextEmail === null && !current.familyId) throw new BadRequestException('Informe o e-mail do aluno.');
+    const { classGroupIds, addRanks, birthDate, email: _email, planId, consent, ...rest } = dto;
     const nextPlanId = planId === undefined ? current.planId : planId || null;
     const planChanged = nextPlanId !== current.planId;
     if (planChanged && nextPlanId) await this.plans.assignable(tenantId, nextPlanId);
@@ -181,7 +190,7 @@ export class StudentsService {
         data: {
           ...rest,
           ...(birthDate ? { birthDate: dateOnly(birthDate) } : {}),
-          ...(email ? { email: email.trim().toLowerCase() } : {}),
+          ...(nextEmail !== undefined ? { email: nextEmail } : {}),
           ...(planId !== undefined ? { planId: planId || null } : {}),
           // mantém a data original do consentimento; desmarcar registra a revogação
           ...(consent === true && !current.consentAt ? { consentAt: new Date() } : {}),
@@ -206,6 +215,9 @@ export class StudentsService {
         await tx.enrollment.createMany({ data: classGroupIds.map((classGroupId) => ({ studentId: id, classGroupId })), skipDuplicates: true });
       }
       return { id, warnings };
+    }).catch((e) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException('Já existe um aluno com esse e-mail.');
+      throw e;
     });
   }
 
@@ -230,6 +242,7 @@ export class StudentsService {
         invoices: { orderBy: [{ year: 'asc' }, { month: 'asc' }] },
         sales: { include: { items: { include: { product: { select: { name: true } } } } }, orderBy: { date: 'asc' } },
         user: { select: { email: true, createdAt: true } },
+        family: { select: { name: true, guardian: { select: { name: true, email: true, phone: true, relation: true } } } },
       },
     });
     if (!s) throw new NotFoundException('Aluno não encontrado.');
@@ -242,6 +255,9 @@ export class StudentsService {
         situacao: s.status, dataInicio: iso(s.startDate), plano: s.plan?.name ?? null, mensalidade: num(s.monthlyFee), diaVencimento: s.dueDay,
         observacoesMedicas: s.medicalNotes,
         responsavel: s.guardianName ? { nome: s.guardianName, parentesco: s.guardianRelation, telefone: s.guardianPhone } : null,
+        familia: s.family
+          ? { nome: s.family.name, titular: { nome: s.family.guardian.name, email: s.family.guardian.email, telefone: s.family.guardian.phone, parentesco: s.family.guardian.relation } }
+          : null,
         consentimentoEm: s.consentAt?.toISOString() ?? null,
         cadastradoEm: s.createdAt.toISOString(),
         acessoAoSistema: s.user ? { email: s.user.email, criadoEm: s.user.createdAt.toISOString() } : null,
@@ -269,12 +285,16 @@ export class StudentsService {
         data: {
           name: removed, email: `removido-${id}@anon.invalid`, phone: null, gender: null, birthDate: dateOnly('1900-01-01'),
           medicalNotes: null, guardianName: null, guardianRelation: null, guardianPhone: null,
-          status: 'INACTIVE', consentAt: null, anonymizedAt: new Date(), planId: null,
+          status: 'INACTIVE', consentAt: null, anonymizedAt: new Date(), planId: null, familyId: null,
         },
       });
       await tx.user.deleteMany({ where: { studentId: id } });
       await tx.enrollment.deleteMany({ where: { studentId: id } });
+      // sai da família: deixa de ser o titular-aluno e sai das cobranças consolidadas
+      await tx.guardian.updateMany({ where: { studentId: id }, data: { studentId: null } });
+      const charges = await tx.invoice.findMany({ where: { studentId: id, familyChargeId: { not: null }, status: { in: ['PENDING', 'OVERDUE'] } }, select: { familyChargeId: true } });
       const open = await tx.invoice.deleteMany({ where: { studentId: id, status: { in: ['PENDING', 'OVERDUE'] }, transaction: null } });
+      for (const c of new Set(charges.map((x) => x.familyChargeId!))) await this.invoices.refreshCharge(tx, c);
       // lançamentos de mensalidade levam o nome do aluno na descrição
       await tx.transaction.updateMany({ where: { invoice: { studentId: id } }, data: { description: `Mensalidade · ${removed}` } });
       return { openInvoicesRemoved: open.count };

@@ -46,13 +46,14 @@ export function TransactionModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function PayInvoiceModal({ invoice, onClose }: { invoice: { id: string; ref: string; amount: number; name?: string }; onClose: () => void }) {
+/** Pagamento de mensalidade; com `url`, paga outra coisa (ex.: cobrança da família). */
+export function PayInvoiceModal({ invoice, url, onClose }: { invoice: { id: string; ref: string; amount: number; name?: string }; url?: string; onClose: () => void }) {
   const [method, setMethod] = useState<PaymentMethod>('PIX');
   const [paidAt, setPaidAt] = useState(todayISO());
   const m = useMutate();
   const save = async () => {
     if (!paidAt) return m.setErr('Informe uma data válida (dd/mm/aaaa).');
-    if (await m.run(() => post(`/invoices/${invoice.id}/pay`, { method, paidAt }), `Pagamento de ${invoice.ref} registrado`)) onClose();
+    if (await m.run(() => post(url ?? `/invoices/${invoice.id}/pay`, { method, paidAt }), `Pagamento de ${invoice.ref} registrado`)) onClose();
   };
   return (
     <Modal title="Registrar pagamento" sub={`${invoice.name ? invoice.name + ' · ' : ''}${invoice.ref} · ${brl(invoice.amount)}`} width={420} onClose={onClose}

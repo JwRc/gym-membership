@@ -36,6 +36,7 @@ export function Layout() {
   const items = [
     ['/', 'Início', ICONS.inicio, 0],
     ['/alunos', 'Alunos', ICONS.alunos, 0],
+    ['/familias', 'Famílias', ICONS.familias, 0],
     ['/turmas', 'Turmas', ICONS.turmas, 0],
     ['/planos', 'Planos', ICONS.planos, 0],
     ['/graduacao', 'Graduação', ICONS.grad, 0],
