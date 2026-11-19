@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../api/client';
 import type { InvoiceRow, StudentDetail, StudentInvoices } from '../api/types';
@@ -33,7 +33,13 @@ export function StudentFinancePage() {
         <button className="btn" onClick={() => nav(`/alunos/${s.id}`)}>Ver ficha</button>
         <button className="btn btn-primary" onClick={() => setLaunch(true)}>Lançar mensalidade</button>
       </div>
-      <InvoiceStats inv={inv} />
+      {s.family && (
+        <div style={{ fontSize: 13, color: 'var(--mute)' }}>
+          Membro da <Link to={`/familias/${s.family.id}`} className="ilink">{s.family.name}</Link>
+          {s.family.billingMode === 'CONSOLIDATED' ? ' · cobrança consolidada: as mensalidades são pagas pela família.' : ' · cobrança separada, com desconto família.'}
+        </div>
+      )}
+      <InvoiceStats inv={inv} familyDueDay={s.family?.dueDay} />
       <InvoicesTable inv={inv} action="Registrar pagamento" onPay={setPay} />
       {launch && <LaunchInvoiceModal student={s} onClose={() => setLaunch(false)} />}
       {pay && <PayInvoiceModal invoice={{ ...pay, name: s.name }} onClose={() => setPay(null)} />}

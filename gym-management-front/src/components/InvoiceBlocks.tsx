@@ -1,8 +1,20 @@
+import { Link } from 'react-router-dom';
 import type { InvoiceRow, StudentInvoices } from '../api/types';
 import { InvoicePill } from './ui';
 import { br, brl } from '../lib/format';
 
-export function InvoiceStats({ inv }: { inv: StudentInvoices }) {
+/** Valor com desconto família: bruto riscado + líquido. */
+export function Amount({ amount, gross, discount, note }: { amount: number; gross?: number; discount?: number; note?: string | null }) {
+  if (!discount) return <span className="num">{brl(amount)}</span>;
+  return (
+    <span className="num" title={note ? `${note}: − ${brl(discount)}` : undefined}>
+      <span style={{ textDecoration: 'line-through', color: 'var(--mute2)', fontSize: 11.5, marginRight: 6 }}>{brl(gross ?? amount + discount)}</span>
+      {brl(amount)}
+    </span>
+  );
+}
+
+export function InvoiceStats({ inv, familyDueDay }: { inv: StudentInvoices; familyDueDay?: number | null }) {
   const s = inv.summary;
   const year = new Date().getFullYear();
   return (
@@ -11,7 +23,7 @@ export function InvoiceStats({ inv }: { inv: StudentInvoices }) {
         [`Pago em ${year}`, brl(s.paidYear), `${s.paidYearCount} mensalidade(s)`, undefined],
         ['Em aberto', brl(s.open), s.openCount ? `${s.openCount} mensalidade(s)` : 'Nada pendente', s.open ? 'var(--bad)' : undefined],
         ['Próximo vencimento', s.next ? br(s.next.dueDate) : '—', s.next ? brl(s.next.amount) : 'Nenhuma lançada', undefined],
-        ['Mensalidade atual', brl(s.monthlyFee), `Vence todo dia ${String(s.dueDay).padStart(2, '0')}`, undefined],
+        ['Mensalidade atual', brl(s.monthlyFee), familyDueDay ? `Vence pela família, dia ${String(familyDueDay).padStart(2, '0')}` : `Vence todo dia ${String(s.dueDay).padStart(2, '0')}`, undefined],
       ].map(([k, v, sub, c]) => (
         <div key={k} className="card stat">
           <div className="stat-k">{k}</div>
@@ -35,11 +47,16 @@ export function InvoicesTable({ inv, action, onPay }: { inv: StudentInvoices; ac
         <div key={m.id} className="trow" style={{ gridTemplateColumns: COLS, fontSize: 13 }}>
           <div className="row gap8">{m.ref}{m.manual && <span className="pill pill-mute" style={{ fontSize: 10.5, padding: '1px 6px' }}>Manual</span>}</div>
           <div className="num muted">{br(m.dueDate)}</div>
-          <div className="num">{brl(m.amount)}</div>
+          <div><Amount amount={m.amount} gross={m.gross} discount={m.discount} note={m.discountNote} /></div>
           <div className="num muted">{m.paidAt ? br(m.paidAt) : '—'}</div>
           <div className="muted">{m.method ?? '—'}</div>
           <div><InvoicePill state={m.state} label={m.label} /></div>
-          <div className="right">{m.canPay && <button className="btn btn-sm" onClick={() => onPay(m)}>{action}</button>}</div>
+          <div className="right">
+            {m.canPay && <button className="btn btn-sm" onClick={() => onPay(m)}>{action}</button>}
+            {!m.canPay && m.charge && m.state !== 'paid' && (
+              <Link to={`/familias/${m.charge.familyId}`} className="pill pill-blue" style={{ textDecoration: 'none' }} title={`Paga-se pela cobrança da ${m.charge.familyName}`}>Cobrança da família →</Link>
+            )}
+          </div>
         </div>
       ))}
       {!inv.rows.length && <div className="empty">Nenhuma mensalidade lançada.</div>}

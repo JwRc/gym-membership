@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  Equals, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateNested,
+  Equals, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { Gender, StudentStatus } from '@prisma/client';
 
@@ -14,7 +14,8 @@ export class CreateStudentDto {
   @IsString() @MinLength(3) name: string;
   @IsOptional() @IsEnum(Gender) gender?: Gender;
   @IsString() birthDate: string; // YYYY-MM-DD
-  @IsEmail() email: string;
+  /** Obrigatório, exceto para membro de família (o contato fica com o titular). */
+  @ValidateIf((o) => o.email != null && o.email !== '') @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsNumber() @Min(0) monthlyFee: number;
   @IsInt() @Min(1) @Max(31) dueDay: number;
@@ -24,6 +25,8 @@ export class CreateStudentDto {
   @IsOptional() @IsString() guardianName?: string;
   @IsOptional() @IsString() guardianRelation?: string;
   @IsOptional() @IsString() guardianPhone?: string;
+  /** Já entra como membro desta família */
+  @IsOptional() @IsString() familyId?: string;
   /** Opcional quando o plano já traz modalidades. */
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => StudentRankInput) ranks?: StudentRankInput[];
   @IsOptional() @IsArray() @IsString({ each: true }) classGroupIds?: string[];
@@ -35,7 +38,8 @@ export class UpdateStudentDto {
   @IsOptional() @IsString() @MinLength(3) name?: string;
   @IsOptional() @IsEnum(Gender) gender?: Gender;
   @IsOptional() @IsString() birthDate?: string;
-  @IsOptional() @IsEmail() email?: string;
+  /** null/vazio só para membro de família */
+  @ValidateIf((o) => o.email != null && o.email !== '') @IsEmail() email?: string | null;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsEnum(StudentStatus) status?: StudentStatus;
   @IsOptional() @IsNumber() @Min(0) monthlyFee?: number;

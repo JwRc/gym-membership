@@ -14,9 +14,11 @@ interface TenantT {
 type Saved = { id: string; warnings?: string[] };
 const withWarnings = (msg: string) => (r: Saved) => [msg, ...(r.warnings ?? [])].join(' · ');
 
-export function StudentModal({ student, onClose }: { student?: StudentDetail; onClose: () => void }) {
+/** Com `family`, cadastra o aluno já como membro dela (e-mail opcional). */
+export function StudentModal({ student, family, onClose }: { student?: StudentDetail; family?: { id: string; name: string }; onClose: () => void }) {
   const nav = useNavigate();
   const editing = !!student;
+  const inFamily = !!family || !!student?.family;
   const disc = useQuery({ queryKey: ['disciplines'], queryFn: () => get<{ disciplines: DisciplineT[] }>('/disciplines') });
   const classes = useQuery({ queryKey: ['classes'], queryFn: () => get<{ classes: ClassGroup[] }>('/classes') });
   const tenant = useQuery({ queryKey: ['tenant'], queryFn: () => get<TenantT>('/tenant') });
@@ -75,7 +77,9 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
     if (!(monthlyFee >= 0)) return m.setErr('Informe a mensalidade.');
     if (!f.birthDate) return m.setErr('Informe a data de nascimento (dd/mm/aaaa).');
     const body = {
-      name: f.name, gender: f.gender || undefined, birthDate: f.birthDate, email: f.email, phone: f.phone || undefined,
+      name: f.name, gender: f.gender || undefined, birthDate: f.birthDate,
+      // membro de família pode ficar sem e-mail
+      email: f.email.trim() || (inFamily ? (editing ? null : undefined) : f.email), phone: f.phone || undefined,
       monthlyFee, dueDay: Number(f.dueDay), planId: editing ? f.planId || null : f.planId || undefined, medicalNotes: f.medicalNotes || undefined,
       guardianName: f.guardianName || undefined, guardianRelation: f.guardianRelation || undefined, guardianPhone: f.guardianPhone || undefined,
       classGroupIds: classIds,
@@ -87,16 +91,16 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
       if (r) onClose();
     } else {
       if (!f.consent) return m.setErr('Confirme o consentimento do aluno (ou responsável) para o uso dos dados.');
-      const r = await m.run(() => post<Saved>('/students', { ...body, ranks: newRanks }), withWarnings(`${f.name} cadastrado`));
+      const r = await m.run(() => post<Saved>('/students', { ...body, ranks: newRanks, familyId: family?.id }), withWarnings(`${f.name} cadastrado`));
       if (r) {
         onClose();
-        nav(`/alunos/${r.id}`);
+        if (!family) nav(`/alunos/${r.id}`);
       }
     }
   };
 
   return (
-    <Modal title={editing ? 'Editar aluno' : 'Novo aluno'} sub={editing ? student!.name : undefined} width={640} onClose={onClose}
+    <Modal title={editing ? 'Editar aluno' : family ? 'Novo membro' : 'Novo aluno'} sub={editing ? student!.name : family?.name} width={640} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={m.busy} onClick={save}>{editing ? 'Salvar' : 'Cadastrar aluno'}</button></>}>
       <div className="grid2" style={{ gap: 12 }}>
         <Field label="Nome completo"><input className="input" value={f.name} onChange={(e) => set({ name: e.target.value })} autoFocus /></Field>
@@ -108,7 +112,9 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
         </div>
       </div>
       <div className="grid2" style={{ gap: 12 }}>
-        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
+        <Field label={inFamily ? 'E-mail (opcional)' : 'E-mail'} hint={inFamily && !f.email ? 'Membro da família: o contato fica com o titular.' : undefined}>
+          <input className="input" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} />
+        </Field>
         <Field label="Telefone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="(11) 90000-0000" /></Field>
       </div>
 
@@ -166,7 +172,9 @@ export function StudentModal({ student, onClose }: { student?: StudentDetail; on
               <div key={c.id} className={'chip' + (on ? ' on' : '')} title={`${c.days} · ${c.time}`}
                 style={{ ...(on ? { borderColor: c.discipline.color, background: soft(c.discipline.color) } : {}), opacity: full ? 0.45 : 1, cursor: full ? 'not-allowed' : 'pointer' }}
                 onClick={() => !full && setClassIds(on ? classIds.filter((x) => x !== c.id) : [...classIds, c.id])}>
-                {c.name}<span style={{ fontSize: 11, color: 'var(--mute2)' }}>{c.count}/{c.capacity}</span>
+                {c.name}
+                <span style={{ fontSize: 11.5, color: 'var(--mute)' }}>{c.days} · {c.time}</span>
+                <span style={{ fontSize: 11, color: 'var(--mute2)' }}>{c.count}/{c.capacity}</span>
               </div>
             );
           })}

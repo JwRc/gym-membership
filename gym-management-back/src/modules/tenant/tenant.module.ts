@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Injectable, Module, Patch, Post } from '@nestjs/common';
-import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { BadRequestException, Body, Controller, Get, Injectable, Module, Patch, Post } from '@nestjs/common';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { DiscountKind, DiscountValueType } from '@prisma/client';
+import { validateRule } from '../../domain/family-discount';
 import { Can, CurrentUser } from '../../common/auth/decorators';
 import { AuthUser } from '../../common/auth/auth.types';
 import { PrismaService } from '../../common/prisma.service';
@@ -13,6 +15,10 @@ class UpdateTenantDto {
   @IsOptional() @IsArray() @ArrayMinSize(1) @IsInt({ each: true }) @Min(1, { each: true }) @Max(31, { each: true }) dueDays?: number[];
   @IsOptional() @IsInt() @Min(0) @Max(30) lateToleranceDays?: number;
   @IsOptional() @IsBoolean() autoGenerateInvoices?: boolean;
+  /** desconto família padrão (cada família pode sobrescrever) */
+  @IsOptional() @IsEnum(DiscountKind) familyDiscountKind?: DiscountKind;
+  @IsOptional() @IsEnum(DiscountValueType) familyDiscountType?: DiscountValueType;
+  @IsOptional() @IsNumber() @Min(0) familyDiscountValue?: number;
 }
 class InstructorDto {
   @IsString() @MinLength(3) name: string;
@@ -38,6 +44,7 @@ export class TenantService {
     return {
       id: t.id, name: t.name, initials: t.initials, code: t.code, cnpj: t.cnpj, phone: t.phone, address: t.address,
       dueDays: t.dueDays, lateToleranceDays: t.lateToleranceDays, autoGenerateInvoices: t.autoGenerateInvoices,
+      familyDiscount: { kind: t.familyDiscountKind, valueType: t.familyDiscountType, value: num(t.familyDiscountValue) },
       plans: t.plans.map((p) => ({ id: p.id, name: p.name, description: p.description, price: num(p.price) })),
       instructors: t.instructors.map((i) => ({ id: i.id, name: i.name })),
       disciplines: t.disciplines.map((d) => ({ id: d.id, name: d.name, color: d.color, system: d.system, instructor: d.instructor?.name ?? null, students: d._count.ranks })),
@@ -45,6 +52,15 @@ export class TenantService {
   }
 
   async update(tenantId: string, dto: UpdateTenantDto) {
+    if (dto.familyDiscountKind || dto.familyDiscountType || dto.familyDiscountValue !== undefined) {
+      const cur = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+      const err = validateRule({
+        kind: dto.familyDiscountKind ?? cur.familyDiscountKind,
+        valueType: dto.familyDiscountType ?? cur.familyDiscountType,
+        value: dto.familyDiscountValue ?? num(cur.familyDiscountValue),
+      });
+      if (err) throw new BadRequestException(err);
+    }
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: { ...dto, ...(dto.name ? { initials: initials(dto.name) } : {}), ...(dto.dueDays ? { dueDays: [...new Set(dto.dueDays)].sort((a, b) => a - b) } : {}) },

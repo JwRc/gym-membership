@@ -5,6 +5,7 @@ import { del, errMsg, get } from '../api/client';
 import type { StudentDetail } from '../api/types';
 import { Alert, Avatar, ErrorBox, FinancePill, InvoicePill, Loading, StatusPill } from '../components/ui';
 import { RankCard, ClassesCard } from '../components/StudentBlocks';
+import { Amount } from '../components/InvoiceBlocks';
 import { GraduationModal } from '../modals/basic';
 import { StudentModal } from '../modals/StudentModal';
 import { useMutate } from '../modals/useMutate';
@@ -16,10 +17,10 @@ import { soft } from '../lib/theme';
 export function personalData(s: StudentDetail) {
   return [
     ['Nascimento', `${br(s.birthDate)} · ${s.age} anos`],
-    ['E-mail', s.email],
+    ['E-mail', s.email ?? (s.family ? `— (contato pelo titular)` : '—')],
     ['Telefone', s.phone ?? '—'],
     ['Aluno desde', `${br(s.startDate)} · ${s.since}`],
-    ['Vencimento', `Todo dia ${String(s.dueDay).padStart(2, '0')}`],
+    ['Vencimento', s.family?.dueDay ? `Pela família, dia ${String(s.family.dueDay).padStart(2, '0')}` : `Todo dia ${String(s.dueDay).padStart(2, '0')}`],
     ['Consentimento (LGPD)', s.consentAt ? `Autorizado em ${br(s.consentAt.slice(0, 10))}` : 'Não registrado'],
   ];
 }
@@ -73,6 +74,17 @@ export function StudentProfilePage() {
             </div>
           ))}
         </div>
+        {s.family && (
+          <div className="row gap10" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)', fontSize: 13 }}>
+            <span style={{ color: 'var(--mute2)', fontSize: 12, width: 130 }}>Família</span>
+            <span>
+              <span className="ilink" onClick={() => nav(`/familias/${s.family!.id}`)}>{s.family.name}</span>
+              {s.family.isGuardian
+                ? <span className="pill pill-blue" style={{ marginLeft: 8 }}>Titular</span>
+                : <span style={{ color: 'var(--mute)' }}> · titular: {s.family.guardianName}</span>}
+            </span>
+          </div>
+        )}
         {s.guardian && (
           <div className="row gap10" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)', fontSize: 13 }}>
             <span style={{ color: 'var(--mute2)', fontSize: 12, width: 130 }}>Responsável</span>
@@ -101,7 +113,7 @@ export function StudentProfilePage() {
           <div className="thead" style={{ gridTemplateColumns: '1.3fr 1fr 1fr 1.2fr' }}><div>Referência</div><div>Vencimento</div><div>Valor</div><div>Status</div></div>
           {s.invoices.rows.slice(0, 6).map((m) => (
             <div key={m.id} className="trow" style={{ gridTemplateColumns: '1.3fr 1fr 1fr 1.2fr', minHeight: 44, fontSize: 13 }}>
-              <div>{m.ref}</div><div className="num muted">{br(m.dueDate)}</div><div className="num">{brl(m.amount)}</div>
+              <div>{m.ref}</div><div className="num muted">{br(m.dueDate)}</div><div><Amount amount={m.amount} gross={m.gross} discount={m.discount} note={m.discountNote} /></div>
               <div><InvoicePill state={m.state} label={m.label} /></div>
             </div>
           ))}

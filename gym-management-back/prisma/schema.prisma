@@ -59,45 +59,83 @@ enum PaymentMethod {
   CREDIT
 }
 
+// ─── Famílias ───
+
+/// Cobrança da família: cada membro com sua mensalidade, ou uma cobrança única no mês
+enum BillingMode {
+  SEPARATE
+  CONSOLIDATED
+}
+
+/// Regra do desconto família
+enum DiscountKind {
+  NONE
+  STATIC // cada membro recebe D
+  PROGRESSIVE // o k-ésimo membro recebe (k−1)×D; o 1º paga cheio
+  FAMILY_FIXED // D sobre o total da família (só cobrança consolidada)
+}
+
+enum DiscountValueType {
+  FIXED // R$
+  PERCENT // %
+}
+
+/// Desconto da família: o padrão da academia, uma regra própria, ou nenhum
+enum DiscountOverride {
+  INHERIT
+  CUSTOM
+  NONE
+}
+
 model Tenant {
-  id                   String   @id @default(cuid())
+  id                   String            @id @default(cuid())
   name                 String
   initials             String
-  code                 String   @unique // Código de acesso dos alunos (ex.: TATAME-4821)
+  code                 String            @unique // Código de acesso dos alunos (ex.: TATAME-4821)
   cnpj                 String?
   phone                String?
   address              String?
-  dueDays              Int[]    @default([1, 5, 10, 15, 20, 30])
-  lateToleranceDays    Int      @default(3)
-  autoGenerateInvoices Boolean  @default(true)
-  createdAt            DateTime @default(now())
+  dueDays              Int[]             @default([1, 5, 10, 15, 20, 30])
+  lateToleranceDays    Int               @default(3)
+  autoGenerateInvoices Boolean           @default(true)
+  /// Desconto família padrão da academia (cada família pode sobrescrever)
+  familyDiscountKind   DiscountKind      @default(NONE)
+  familyDiscountType   DiscountValueType @default(PERCENT)
+  familyDiscountValue  Decimal           @default(0) @db.Decimal(10, 2)
+  createdAt            DateTime          @default(now())
 
-  users        User[]
-  instructors  Instructor[]
-  disciplines  Discipline[]
-  plans        Plan[]
-  students     Student[]
-  classGroups  ClassGroup[]
-  invoices     Invoice[]
-  transactions Transaction[]
-  products     Product[]
-  sales        Sale[]
-  auditLogs    AuditLog[]
+  users         User[]
+  instructors   Instructor[]
+  disciplines   Discipline[]
+  plans         Plan[]
+  students      Student[]
+  classGroups   ClassGroup[]
+  invoices      Invoice[]
+  transactions  Transaction[]
+  products      Product[]
+  sales         Sale[]
+  auditLogs     AuditLog[]
+  guardians     Guardian[]
+  families      Family[]
+  familyCharges FamilyCharge[]
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  email        String   @unique
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String    @unique
   passwordHash String
   name         String
   role         Role
-  studentId    String?  @unique
-  student      Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId    String?   @unique
+  student      Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// titular de família (preparação para o portal; ainda sem login criado pelo sistema)
+  guardianId   String?   @unique
+  guardian     Guardian? @relation(fields: [guardianId], references: [id], onDelete: Cascade)
   /// incrementado ao trocar a senha: tokens com versão antiga deixam de valer
-  tokenVersion Int      @default(0)
-  createdAt    DateTime @default(now())
+  tokenVersion Int       @default(0)
+  createdAt    DateTime  @default(now())
 }
 
 /// Quem fez o quê: toda escrita de usuário logado e ações sensíveis (login, import, export, anonimização).
@@ -242,7 +280,8 @@ model Student {
   name             String
   gender           Gender?
   birthDate        DateTime      @db.Date
-  email            String
+  /// opcional só para membros de família (o contato fica com o titular)
+  email            String?
   phone            String?
   status           StudentStatus @default(ACTIVE)
   monthlyFee       Decimal       @db.Decimal(10, 2)
@@ -254,6 +293,8 @@ model Student {
   guardianPhone    String?
   planId           String?
   plan             Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  familyId         String?
+  family           Family?       @relation(fields: [familyId], references: [id], onDelete: SetNull)
   /// LGPD: quando o aluno (ou responsável) autorizou o uso dos dados, inclusive de saúde
   consentAt        DateTime?
   /// LGPD: dados pessoais apagados a pedido; mensalidades e vendas ficam (registros financeiros)
@@ -267,9 +308,73 @@ model Student {
   attendances Attendance[]
   invoices    Invoice[]
   sales       Sale[]
+  guardianOf  Guardian?
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
+  @@index([familyId])
+}
+
+/// Titular (responsável financeiro) de uma família. Pode ou não treinar.
+model Guardian {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  phone     String?
+  cpf       String?
+  relation  String? // Mãe, Pai…
+  /// o titular também treina
+  studentId String?  @unique
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  family    Family?
+  user      User?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, cpf])
+}
+
+model Family {
+  id               String             @id @default(cuid())
+  tenantId         String
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  guardianId       String             @unique
+  guardian         Guardian           @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  billingMode      BillingMode        @default(SEPARATE)
+  /// vencimento único da cobrança consolidada
+  dueDay           Int?
+  discountOverride DiscountOverride   @default(INHERIT)
+  discountKind     DiscountKind?
+  discountType     DiscountValueType?
+  discountValue    Decimal?           @db.Decimal(10, 2)
+  createdAt        DateTime           @default(now())
+  members          Student[]
+  charges          FamilyCharge[]
+
+  @@index([tenantId])
+}
+
+/// Cobrança consolidada do mês: agrupa as mensalidades dos membros (o total é a soma delas)
+model FamilyCharge {
+  id            String         @id @default(cuid())
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  familyId      String
+  family        Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  year          Int
+  month         Int
+  dueDate       DateTime       @db.Date
+  status        InvoiceStatus  @default(PENDING)
+  paidAt        DateTime?      @db.Date
+  paymentMethod PaymentMethod?
+  createdAt     DateTime       @default(now())
+  invoices      Invoice[]
+
+  @@unique([familyId, year, month])
+  @@index([tenantId, dueDate])
 }
 
 // Graduação atual do aluno em uma modalidade
@@ -353,23 +458,29 @@ model Attendance {
 
 // Mensalidade
 model Invoice {
-  id            String         @id @default(cuid())
-  tenantId      String
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  studentId     String
-  student       Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  year          Int
-  month         Int // 1–12
-  dueDate       DateTime       @db.Date
-  amount        Decimal        @db.Decimal(10, 2)
-  status        InvoiceStatus  @default(PENDING)
-  paidAt        DateTime?      @db.Date
-  paymentMethod PaymentMethod?
-  manual        Boolean        @default(false)
-  transaction   Transaction?
+  id             String         @id @default(cuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int // 1–12
+  dueDate        DateTime       @db.Date
+  /// valor líquido (o bruto é amount + discount)
+  amount         Decimal        @db.Decimal(10, 2)
+  discount       Decimal        @default(0) @db.Decimal(10, 2)
+  discountNote   String?
+  status         InvoiceStatus  @default(PENDING)
+  paidAt         DateTime?      @db.Date
+  paymentMethod  PaymentMethod?
+  manual         Boolean        @default(false)
+  familyChargeId String?
+  familyCharge   FamilyCharge?  @relation(fields: [familyChargeId], references: [id], onDelete: SetNull)
+  transaction    Transaction?
 
   @@unique([studentId, year, month])
   @@index([tenantId, dueDate])
+  @@index([familyChargeId])
 }
 
 // Lançamento financeiro

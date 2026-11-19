@@ -136,3 +136,4 @@ select.input{padding:0 8px}
 .spinner{width:18px;height:18px;border-radius:50%;border:2px solid var(--bd2);border-top-color:var(--brand);animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading{display:flex;align-items:center;justify-content:center;padding:80px;color:var(--mute)}
+.ilink{color:var(--blue);cursor:pointer;text-decoration:none}.ilink:hover{text-decoration:underline}
